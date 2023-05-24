@@ -1,24 +1,23 @@
-//// We are using the following grammar for CSV
+//// We are using the following grammar for CSV from rfc4180
 ////
-//// csv       = line (newline line)*
-//// line      = field (comma field)*
-//// field     = escaped / nonescaped
-//// escaped   = doublequote *(TEXTDATA / comma / newline / doublequote doublequote) doublequote
-//// nonescaped = *(TEXTDATA)
-//// comma     = ','
-//// newline   = '\n'
-//// doublequote = '"'
-//// TEXTDATA  = <any character except comma, newline, doublequote>
+//// file = [header CRLF] record *(CRLF record) [CRLF]
+////   header = name *(COMMA name)
+////  record = field *(COMMA field)
+////  name = field
+////  field = (escaped / non-escaped)
+////  escaped = DQUOTE *(TEXTDATA / COMMA / CR / LF / 2DQUOTE) DQUOTE
+////  non-escaped = *TEXTDATA
 
 import gleam/list
 import gleam/result
-import token.{Comma, CsvToken, Doublequote, Newline, Textdata}
+import token.{CR, Comma, CsvToken, Doublequote, LF, Textdata}
 
 type ParseState {
   Beginning
   JustParsedField
   JustParsedComma
   JustParsedNewline
+  JustParsedCR
   InsideEscapedString
 }
 
@@ -53,14 +52,36 @@ fn parse_p(
 
     _, Beginning, _ -> Error(Nil)
 
-    // If we just parsed a field, we're expecting either a comma or a newline
+    // If we just parsed a field, we're expecting either a comma or a CRLF
     [Comma, ..remaining_tokens], JustParsedField, llf ->
       parse_p(remaining_tokens, JustParsedComma, llf)
 
-    [Newline, ..remaining_tokens], JustParsedField, llf ->
+    [LF, ..remaining_tokens], JustParsedField, llf ->
       parse_p(remaining_tokens, JustParsedNewline, llf)
 
+    [CR, ..remaining_tokens], JustParsedField, llf ->
+      parse_p(remaining_tokens, JustParsedCR, llf)
+
     _, JustParsedField, _ -> Error(Nil)
+
+    // If we just parsed a CR, we're expecting either an LF or an escaped or non escaped string
+    [LF, ..remaining_tokens], JustParsedCR, llf ->
+      parse_p(remaining_tokens, JustParsedNewline, llf)
+
+    [Textdata(str), ..remaining_tokens], JustParsedCR, llf ->
+      parse_p(remaining_tokens, JustParsedField, [[str], ..llf])
+
+    [Doublequote, ..remaining_tokens], JustParsedCR, [
+      curr_line,
+      ..previously_parsed_lines
+    ] ->
+      parse_p(
+        remaining_tokens,
+        InsideEscapedString,
+        [["", ..curr_line], ..previously_parsed_lines],
+      )
+
+    _, JustParsedCR, _ -> Error(Nil)
 
     // If we just parsed a comma, we're expecting an Escaped or Non-Escaped string
     [Textdata(str), ..remaining_tokens], JustParsedComma, [

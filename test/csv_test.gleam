@@ -1,6 +1,6 @@
 import gleeunit
 import gleeunit/should
-import token.{CR, Comma, Doublequote, Newline, Textdata, scan}
+import token.{CR, Comma, Doublequote, LF, Textdata, scan}
 import ast.{parse}
 import csv
 
@@ -9,7 +9,7 @@ pub fn main() {
 }
 
 pub fn scan_test() {
-  "Ben, 25,\" TRUE\n\r\""
+  "Ben, 25,\" TRUE\r\n\""
   |> scan
   |> should.equal([
     Textdata("Ben"),
@@ -18,8 +18,8 @@ pub fn scan_test() {
     Comma,
     Doublequote,
     Textdata(" TRUE"),
-    Newline,
     CR,
+    LF,
     Doublequote,
   ])
 }
@@ -43,9 +43,27 @@ pub fn parse_empty_string_fail_test() {
 
 pub fn csv_parse_test() {
   "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
-  |> csv.csv_to_lists
+  |> csv.to_lists
   |> should.equal(Ok([
     ["Ben", " 25", " TRUE\n\r\""],
     ["Austin", " 25", " FALSE"],
   ]))
+}
+
+pub fn scan_crlf_test() {
+  "\r\n"
+  |> scan
+  |> should.equal([CR, LF])
+}
+
+pub fn parse_crlf_test() {
+  "test\ntest\rtest\r\ntest"
+  |> csv.to_lists
+  |> should.equal(Ok([["test"], ["test"], ["test"], ["test"]]))
+}
+
+pub fn parse_lfcr_fails_test() {
+  "test\n\r"
+  |> csv.to_lists
+  |> should.equal(Error(Nil))
 }
