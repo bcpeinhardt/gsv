@@ -9,11 +9,22 @@ pub fn to_lists(input: String) -> Result(List(List(String)), Nil) {
   |> ast.parse
 }
 
+pub type LineEnding {
+  Windows
+  Unix
+}
+
+fn le_to_string(le: LineEnding) -> String {
+  case le {
+    Windows -> "\r\n"
+    Unix -> "\n"
+  }
+}
+
 pub fn from_lists(
   input: List(List(String)),
-  delimiter delimiter: String,
-  line_ending line_ending: String,
-  escape escape: String,
+  separator separator: String,
+  line_ending line_ending: LineEnding,
 ) -> String {
   input
   |> list.map(fn(row) {
@@ -21,21 +32,21 @@ pub fn from_lists(
       row,
       fn(entry) {
         // Double quotes need to be escaped with an extra doublequote
-        let entry = string.replace(entry, escape, escape <> escape)
+        let entry = string.replace(entry, "\"", "\"\"")
 
         // If the string contains a , \n \r or " it needs to be escaped by wrapping in double quotes
         case
-          string.contains(entry, delimiter) || string.contains(
+          string.contains(entry, separator) || string.contains(
             entry,
-            line_ending,
-          ) || string.contains(entry, escape)
+            le_to_string(line_ending),
+          ) || string.contains(entry, "\"")
         {
-          True -> escape <> entry <> escape
+          True -> "\"" <> entry <> "\""
           False -> entry
         }
       },
     )
   })
-  |> list.map(fn(row) { string.join(row, delimiter) })
-  |> string.join(line_ending)
+  |> list.map(fn(row) { string.join(row, separator) })
+  |> string.join(le_to_string(line_ending))
 }

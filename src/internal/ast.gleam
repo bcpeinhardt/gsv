@@ -64,22 +64,9 @@ fn parse_p(
 
     _, JustParsedField, _ -> Error(Nil)
 
-    // If we just parsed a CR, we're expecting either an LF or an escaped or non escaped string
+    // If we just parsed a CR, we're expecting an LF
     [LF, ..remaining_tokens], JustParsedCR, llf ->
       parse_p(remaining_tokens, JustParsedNewline, llf)
-
-    [Textdata(str), ..remaining_tokens], JustParsedCR, llf ->
-      parse_p(remaining_tokens, JustParsedField, [[str], ..llf])
-
-    [Doublequote, ..remaining_tokens], JustParsedCR, [
-      curr_line,
-      ..previously_parsed_lines
-    ] ->
-      parse_p(
-        remaining_tokens,
-        InsideEscapedString,
-        [["", ..curr_line], ..previously_parsed_lines],
-      )
 
     _, JustParsedCR, _ -> Error(Nil)
 

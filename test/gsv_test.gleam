@@ -61,9 +61,9 @@ pub fn scan_crlf_test() {
 }
 
 pub fn parse_crlf_test() {
-  "test\ntest\rtest\r\ntest"
+  "test\ntest\r\ntest"
   |> gsv.to_lists
-  |> should.equal(Ok([["test"], ["test"], ["test"], ["test"]]))
+  |> should.equal(Ok([["test"], ["test"], ["test"]]))
 }
 
 pub fn parse_lfcr_fails_test() {
@@ -73,9 +73,9 @@ pub fn parse_lfcr_fails_test() {
 }
 
 pub fn last_line_has_optional_line_ending_test() {
-  "test\ntest\rtest\r\ntest\n"
+  "test\ntest\r\ntest\n"
   |> gsv.to_lists
-  |> should.equal(Ok([["test"], ["test"], ["test"], ["test"]]))
+  |> should.equal(Ok([["test"], ["test"], ["test"]]))
 }
 
 // ---------- Example doing CSV string -> Custom type ------------------------
@@ -107,7 +107,7 @@ pub fn decode_to_type_test() {
 pub fn encode_test() {
   let assert Ok(lls) = gsv.to_lists("Ben, 25\nAustin, 21")
   lls
-  |> gsv.from_lists(delimiter: ",", line_ending: "\n", escape: "\"")
+  |> gsv.from_lists(separator: ",", line_ending: gsv.Unix)
   |> should.equal("Ben, 25\nAustin, 21")
 }
 
@@ -117,6 +117,16 @@ pub fn encode_with_escaped_string_test() {
     |> gsv.to_lists
 
   lls
-  |> gsv.from_lists(",", "\n", "\"")
+  |> gsv.from_lists(separator: ",", line_ending: gsv.Unix)
   |> should.equal("Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE")
+}
+
+pub fn encode_with_escaped_string_windows_test() {
+  let assert Ok(lls) =
+    "Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE"
+    |> gsv.to_lists
+
+  lls
+  |> gsv.from_lists(separator: ",", line_ending: gsv.Windows)
+  |> should.equal("Ben, 25,\" TRUE\n\r\"\" \"\r\nAustin, 25, FALSE")
 }

@@ -3,7 +3,7 @@
 [![Package Version](https://img.shields.io/hexpm/v/csv)](https://hex.pm/packages/csv)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/csv/)
 
-This is a simple csv parser for gleam. It will get more performant in the future,
+This is a simple csv parser and writer for gleam. It will get more performant in the future,
 but if you're looking for high performance now, I'd recommend doing ffi to an existing parser
 in your target runtime.
 
