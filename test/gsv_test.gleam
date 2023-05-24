@@ -107,7 +107,7 @@ pub fn decode_to_type_test() {
 pub fn encode_test() {
   let assert Ok(lls) = gsv.to_lists("Ben, 25\nAustin, 21")
   lls
-  |> gsv.from_lists(delimiter: ",", line_ending: "\n")
+  |> gsv.from_lists(delimiter: ",", line_ending: "\n", escape: "\"")
   |> should.equal("Ben, 25\nAustin, 21")
 }
 
@@ -117,6 +117,6 @@ pub fn encode_with_escaped_string_test() {
     |> gsv.to_lists
 
   lls
-  |> gsv.from_lists(",", "\n")
+  |> gsv.from_lists(",", "\n", "\"")
   |> should.equal("Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE")
 }
