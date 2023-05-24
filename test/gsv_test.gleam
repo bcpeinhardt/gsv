@@ -101,4 +101,12 @@ pub fn decode_to_type_test() {
   users
   |> should.equal([Ok(User("Ben", 25)), Ok(User("Austin", 21))])
 }
+
 // ---------------------------------------------------------------------------
+
+pub fn encode_test() {
+  let assert Ok(lls) = gsv.to_lists("Ben, 25\nAustin, 21")
+  lls
+  |> gsv.from_lists(delimiter: ",", line_ending: "\n")
+  |> should.equal("Ben, 25\nAustin, 21")
+}
