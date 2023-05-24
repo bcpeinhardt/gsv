@@ -1,7 +1,7 @@
 import gleeunit
 import gleeunit/should
-import gsv/token.{CR, Comma, Doublequote, LF, Textdata, scan}
-import gsv/ast.{parse}
+import internal/token.{CR, Comma, Doublequote, LF, Textdata, scan}
+import internal/ast.{parse}
 import gsv
 
 pub fn main() {
