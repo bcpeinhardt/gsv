@@ -38,7 +38,6 @@ fn parse_p(
   llf: List(List(String)),
 ) -> Result(List(List(String)), Nil) {
   case input, parse_state, llf {
-
     // Error Case: An empty list should produce an Error
     [], Beginning, _ -> Error(Nil)
 

@@ -1,7 +1,6 @@
 import gleam/map.{Map}
 import gleam/list
 import gleam/result
-
 import ast
 import token
 
