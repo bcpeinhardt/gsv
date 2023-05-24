@@ -1,8 +1,8 @@
 import gleeunit
 import gleeunit/should
-import token.{CR, Comma, Doublequote, LF, Textdata, scan}
-import ast.{parse}
-import csv
+import gsv/token.{CR, Comma, Doublequote, LF, Textdata, scan}
+import gsv/ast.{parse}
+import gsv
 
 pub fn main() {
   gleeunit.main()
@@ -43,7 +43,7 @@ pub fn parse_empty_string_fail_test() {
 
 pub fn csv_parse_test() {
   "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
-  |> csv.to_lists
+  |> gsv.to_lists
   |> should.equal(Ok([
     ["Ben", " 25", " TRUE\n\r\""],
     ["Austin", " 25", " FALSE"],
@@ -58,18 +58,18 @@ pub fn scan_crlf_test() {
 
 pub fn parse_crlf_test() {
   "test\ntest\rtest\r\ntest"
-  |> csv.to_lists
+  |> gsv.to_lists
   |> should.equal(Ok([["test"], ["test"], ["test"], ["test"]]))
 }
 
 pub fn parse_lfcr_fails_test() {
   "test\n\r"
-  |> csv.to_lists
+  |> gsv.to_lists
   |> should.equal(Error(Nil))
 }
 
 pub fn last_line_has_optional_line_ending() {
   "test\ntest\rtest\r\ntest\n"
-  |> csv.to_lists
+  |> gsv.to_lists
   |> should.equal(Ok([["test"], ["test"], ["test"], ["test"]]))
 }

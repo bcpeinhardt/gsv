@@ -10,7 +10,7 @@
 
 import gleam/list
 import gleam/result
-import token.{CR, Comma, CsvToken, Doublequote, LF, Textdata}
+import gsv/token.{CR, Comma, CsvToken, Doublequote, LF, Textdata}
 
 type ParseState {
   Beginning

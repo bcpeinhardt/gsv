@@ -1,5 +1,5 @@
-import ast
-import token
+import gsv/ast
+import gsv/token
 
 pub fn to_lists(input: String) -> Result(List(List(String)), Nil) {
   input
