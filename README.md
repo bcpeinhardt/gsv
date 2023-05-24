@@ -1,4 +1,4 @@
-# csv
+# gsv
 
 [![Package Version](https://img.shields.io/hexpm/v/csv)](https://hex.pm/packages/csv)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/csv/)
@@ -13,7 +13,7 @@ We are using the grammar from [rfc 4180](https://datatracker.ietf.org/doc/html/r
 
 ```gleam
 "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
-  |> csv.to_lists
+  |> gsv.to_lists
   |> should.equal(Ok([
     ["Ben", " 25", " TRUE\n\r\""],
     ["Austin", " 25", " FALSE"],
