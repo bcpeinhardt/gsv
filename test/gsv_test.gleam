@@ -2,7 +2,7 @@ import gleeunit
 import gleeunit/should
 import internal/token.{CR, Comma, Doublequote, LF, Textdata, scan}
 import internal/ast.{parse}
-import gsv
+import gsv.{Unix, Windows}
 import gleam/list
 import gleam/result
 import gleam/int
@@ -107,7 +107,7 @@ pub fn decode_to_type_test() {
 pub fn encode_test() {
   let assert Ok(lls) = gsv.to_lists("Ben, 25\nAustin, 21")
   lls
-  |> gsv.from_lists(separator: ",", line_ending: gsv.Unix)
+  |> gsv.from_lists(separator: ",", line_ending: Unix)
   |> should.equal("Ben, 25\nAustin, 21")
 }
 
@@ -117,7 +117,7 @@ pub fn encode_with_escaped_string_test() {
     |> gsv.to_lists
 
   lls
-  |> gsv.from_lists(separator: ",", line_ending: gsv.Unix)
+  |> gsv.from_lists(separator: ",", line_ending: Unix)
   |> should.equal("Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE")
 }
 
@@ -127,6 +127,18 @@ pub fn encode_with_escaped_string_windows_test() {
     |> gsv.to_lists
 
   lls
-  |> gsv.from_lists(separator: ",", line_ending: gsv.Windows)
+  |> gsv.from_lists(separator: ",", line_ending: Windows)
   |> should.equal("Ben, 25,\" TRUE\n\r\"\" \"\r\nAustin, 25, FALSE")
+}
+
+pub fn for_the_readme_test() {
+  let csv_str = "Hello, World\nGoodbye, Mars"
+
+  // Parse a CSV string to a List(List(String))
+  let assert Ok(records) = gsv.to_lists(csv_str)
+
+  // Write a List(List(String)) to a CSV string
+  records
+  |> gsv.from_lists(separator: ",", line_ending: Windows)
+  |> should.equal("Hello, World\r\nGoodbye, Mars")
 }

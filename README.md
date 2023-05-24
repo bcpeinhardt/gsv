@@ -12,12 +12,18 @@ We are using the grammar from [rfc 4180](https://datatracker.ietf.org/doc/html/r
 #### Example
 
 ```gleam
-"Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
-  |> gsv.to_lists
-  |> should.equal(Ok([
-    ["Ben", " 25", " TRUE\n\r\""],
-    ["Austin", " 25", " FALSE"],
-  ]))
+import gsv.{Unix, Windows}
+
+pub fn main() {
+  let csv_str = "Hello, World\nGoodbye, Mars"
+
+  // Parse a CSV string to a List(List(String))
+  let assert Ok(records) = gsv.to_lists(csv_str)
+
+  // Write a List(List(String)) to a CSV string
+  let csv_str = records
+  |> gsv.from_lists(separator: ",", line_ending: Windows)
+}
 ```
 
 ## Quick start
