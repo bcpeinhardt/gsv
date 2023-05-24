@@ -1,5 +1,5 @@
-import internal/ast
-import internal/token
+import gsv/internal/ast
+import gsv/internal/token
 import gleam/list
 import gleam/string
 
