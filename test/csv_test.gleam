@@ -67,3 +67,9 @@ pub fn parse_lfcr_fails_test() {
   |> csv.to_lists
   |> should.equal(Error(Nil))
 }
+
+pub fn last_line_has_optional_line_ending() {
+  "test\ntest\rtest\r\ntest\n"
+  |> csv.to_lists
+  |> should.equal(Ok([["test"], ["test"], ["test"], ["test"]]))
+}

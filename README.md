@@ -7,14 +7,9 @@ This is a simple csv parser for gleam. It will get more performant in the future
 but if you're looking for high performance now, I'd recommend doing ffi to an existing parser
 in your target runtime.
 
-We are using the following grammar for CSV from rfc4180
-file = [header CRLF] record *(CRLF record) [CRLF]
-header = name *(COMMA name)
-record = field *(COMMA field)
-name = field
-field = (escaped / non-escaped)
-escaped = DQUOTE *(TEXTDATA / COMMA / CR / LF / 2DQUOTE) DQUOTE
-non-escaped = *TEXTDATA
+We are using the grammar from [rfc 4180](https://datatracker.ietf.org/doc/html/rfc4180#section-2)
+
+#### Example
 
 ```gleam
 "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
