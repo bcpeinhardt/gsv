@@ -13,7 +13,7 @@ We are using the grammar from [rfc 4180](https://datatracker.ietf.org/doc/html/r
 
 ```gleam
 "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
-  |> csv.csv_to_lists
+  |> csv.to_lists
   |> should.equal(Ok([
     ["Ben", " 25", " TRUE\n\r\""],
     ["Austin", " 25", " FALSE"],
