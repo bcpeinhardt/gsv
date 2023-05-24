@@ -110,3 +110,13 @@ pub fn encode_test() {
   |> gsv.from_lists(delimiter: ",", line_ending: "\n")
   |> should.equal("Ben, 25\nAustin, 21")
 }
+
+pub fn encode_with_escaped_string_test() {
+  let assert Ok(lls) =
+    "Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE"
+    |> gsv.to_lists
+
+  lls
+  |> gsv.from_lists(",", "\n")
+  |> should.equal("Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE")
+}
