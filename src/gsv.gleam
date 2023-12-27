@@ -38,24 +38,21 @@ pub fn from_lists(
 ) -> String {
   input
   |> list.map(fn(row) {
-    list.map(
-      row,
-      fn(entry) {
-        // Double quotes need to be escaped with an extra doublequote
-        let entry = string.replace(entry, "\"", "\"\"")
+    list.map(row, fn(entry) {
+      // Double quotes need to be escaped with an extra doublequote
+      let entry = string.replace(entry, "\"", "\"\"")
 
-        // If the string contains a , \n \r\n or " it needs to be escaped by wrapping in double quotes
-        case
-          string.contains(entry, separator) || string.contains(entry, "\n") || string.contains(
-            entry,
-            "\"",
-          )
-        {
-          True -> "\"" <> entry <> "\""
-          False -> entry
-        }
-      },
-    )
+      // If the string contains a , \n \r\n or " it needs to be escaped by wrapping in double quotes
+      case
+        string.contains(entry, separator) || string.contains(entry, "\n") || string.contains(
+          entry,
+          "\"",
+        )
+      {
+        True -> "\"" <> entry <> "\""
+        False -> entry
+      }
+    })
   })
   |> list.map(fn(row) { string.join(row, separator) })
   |> string.join(le_to_string(line_ending))

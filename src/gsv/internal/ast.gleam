@@ -75,21 +75,19 @@ fn parse_p(
       curr_line,
       ..previously_parsed_lines
     ] ->
-      parse_p(
-        remaining_tokens,
-        JustParsedField,
-        [[str, ..curr_line], ..previously_parsed_lines],
-      )
+      parse_p(remaining_tokens, JustParsedField, [
+        [str, ..curr_line],
+        ..previously_parsed_lines
+      ])
 
     [Doublequote, ..remaining_tokens], JustParsedComma, [
       curr_line,
       ..previously_parsed_lines
     ] ->
-      parse_p(
-        remaining_tokens,
-        InsideEscapedString,
-        [["", ..curr_line], ..previously_parsed_lines],
-      )
+      parse_p(remaining_tokens, InsideEscapedString, [
+        ["", ..curr_line],
+        ..previously_parsed_lines
+      ])
 
     _, JustParsedComma, _ -> Error(Nil)
 
@@ -101,11 +99,10 @@ fn parse_p(
       curr_line,
       ..previously_parsed_lines
     ] ->
-      parse_p(
-        remaining_tokens,
-        InsideEscapedString,
-        [["", ..curr_line], ..previously_parsed_lines],
-      )
+      parse_p(remaining_tokens, InsideEscapedString, [
+        ["", ..curr_line],
+        ..previously_parsed_lines
+      ])
 
     _, JustParsedNewline, _ -> Error(Nil)
 
@@ -115,11 +112,10 @@ fn parse_p(
       [str, ..rest_curr_line],
       ..previously_parsed_lines
     ] ->
-      parse_p(
-        remaining_tokens,
-        InsideEscapedString,
-        [[str <> "\"", ..rest_curr_line], ..previously_parsed_lines],
-      )
+      parse_p(remaining_tokens, InsideEscapedString, [
+        [str <> "\"", ..rest_curr_line],
+        ..previously_parsed_lines
+      ])
 
     [Doublequote, ..remaining_tokens], InsideEscapedString, llf ->
       parse_p(remaining_tokens, JustParsedField, llf)
@@ -128,13 +124,12 @@ fn parse_p(
       [str, ..rest_curr_line],
       ..previously_parsed_lines
     ] ->
-      parse_p(
-        remaining_tokens,
-        InsideEscapedString,
-        [
-          [str <> token.to_lexeme(other_token), ..rest_curr_line],
-          ..previously_parsed_lines
-        ],
-      )
+      parse_p(remaining_tokens, InsideEscapedString, [
+        [str <> token.to_lexeme(other_token), ..rest_curr_line],
+        ..previously_parsed_lines
+      ])
+
+    // Anything else is an error
+    _, _, _ -> Error(Nil)
   }
 }

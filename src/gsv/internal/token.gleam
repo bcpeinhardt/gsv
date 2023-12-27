@@ -32,23 +32,20 @@ pub fn to_lexeme(token: CsvToken) -> String {
 pub fn scan(input: String) -> List(CsvToken) {
   input
   |> string.to_utf_codepoints
-  |> list.fold(
-    [],
-    fn(acc, x) {
-      case string.utf_codepoint_to_int(x) {
-        0x2c -> [Comma, ..acc]
-        0x22 -> [Doublequote, ..acc]
-        0x0a -> [LF, ..acc]
-        0x0D -> [CR, ..acc]
-        _ -> {
-          let cp = string.from_utf_codepoints([x])
-          case acc {
-            [Textdata(str), ..rest] -> [Textdata(str <> cp), ..rest]
-            _ -> [Textdata(cp), ..acc]
-          }
+  |> list.fold([], fn(acc, x) {
+    case string.utf_codepoint_to_int(x) {
+      0x2c -> [Comma, ..acc]
+      0x22 -> [Doublequote, ..acc]
+      0x0a -> [LF, ..acc]
+      0x0D -> [CR, ..acc]
+      _ -> {
+        let cp = string.from_utf_codepoints([x])
+        case acc {
+          [Textdata(str), ..rest] -> [Textdata(str <> cp), ..rest]
+          _ -> [Textdata(cp), ..acc]
         }
       }
-    },
-  )
+    }
+  })
   |> list.reverse
 }

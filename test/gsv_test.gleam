@@ -32,10 +32,9 @@ pub fn parse_test() {
   "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
   |> scan
   |> parse
-  |> should.equal(Ok([
-    ["Ben", " 25", " TRUE\n\r\""],
-    ["Austin", " 25", " FALSE"],
-  ]))
+  |> should.equal(
+    Ok([["Ben", " 25", " TRUE\n\r\""], ["Austin", " 25", " FALSE"]]),
+  )
 }
 
 pub fn parse_empty_string_fail_test() {
@@ -48,10 +47,9 @@ pub fn parse_empty_string_fail_test() {
 pub fn csv_parse_test() {
   "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
   |> gsv.to_lists
-  |> should.equal(Ok([
-    ["Ben", " 25", " TRUE\n\r\""],
-    ["Austin", " 25", " FALSE"],
-  ]))
+  |> should.equal(
+    Ok([["Ben", " 25", " TRUE\n\r\""], ["Austin", " 25", " FALSE"]]),
+  )
 }
 
 pub fn scan_crlf_test() {
