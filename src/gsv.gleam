@@ -1,14 +1,41 @@
-import gsv/internal/ast
-import gsv/internal/token
+import gsv/internal/ast.{ParseError}
+import gsv/internal/token.{Location}
 import gleam/list
 import gleam/string
+import gleam/result
+import gleam/int
 
 /// Parses a csv string to a list of lists of strings.
 /// Automatically handles Windows and Unix line endings.
 pub fn to_lists(input: String) -> Result(List(List(String)), Nil) {
   input
   |> token.scan
+  |> token.with_location
   |> ast.parse
+  |> result.nil_error
+}
+
+/// Parses a csv string to a list of lists of strings.
+/// Automatically handles Windows and Unix line endings.
+/// Panics with an error msg if the string is not valid csv.
+pub fn to_lists_or_panic(input: String) -> List(List(String)) {
+  let res =
+    input
+    |> token.scan
+    |> token.with_location
+    |> ast.parse
+
+  case res {
+    Ok(lol) -> lol
+    Error(ParseError(Location(line, column), msg)) -> {
+      panic as {
+        "[" <> "line " <> int.to_string(line) <> " column " <> int.to_string(
+          column,
+        ) <> "] of csv: " <> msg
+      }
+      [[]]
+    }
+  }
 }
 
 /// Option for using "\n = LF = Unix" or "\r\n = CRLF = Windows"

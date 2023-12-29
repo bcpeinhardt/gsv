@@ -10,7 +10,9 @@
 
 import gleam/list
 import gleam/result
-import gsv/internal/token.{type CsvToken, CR, Comma, Doublequote, LF, Textdata}
+import gsv/internal/token.{
+  type CsvToken, type Location, CR, Comma, Doublequote, LF, Location, Textdata,
+}
 
 type ParseState {
   Beginning
@@ -21,7 +23,13 @@ type ParseState {
   InsideEscapedString
 }
 
-pub fn parse(input: List(CsvToken)) -> Result(List(List(String)), Nil) {
+pub type ParseError {
+  ParseError(location: Location, message: String)
+}
+
+pub fn parse(
+  input: List(#(CsvToken, Location)),
+) -> Result(List(List(String)), ParseError) {
   let inner_rev = {
     use llf <- result.try(parse_p(input, Beginning, []))
     use lf <- list.try_map(llf)
@@ -32,46 +40,58 @@ pub fn parse(input: List(CsvToken)) -> Result(List(List(String)), Nil) {
 }
 
 fn parse_p(
-  input: List(CsvToken),
+  input: List(#(CsvToken, Location)),
   parse_state: ParseState,
   llf: List(List(String)),
-) -> Result(List(List(String)), Nil) {
+) -> Result(List(List(String)), ParseError) {
   case input, parse_state, llf {
     // Error Case: An empty list should produce an Error
-    [], Beginning, _ -> Error(Nil)
+    [], Beginning, _ -> Error(ParseError(Location(0, 0), "Empty input"))
 
     // BASE CASE: We are done parsing tokens
     [], _, llf -> Ok(llf)
 
     // File should begin with either Escaped or Nonescaped string
-    [Textdata(str), ..remaining_tokens], Beginning, [] ->
+    [#(Textdata(str), _), ..remaining_tokens], Beginning, [] ->
       parse_p(remaining_tokens, JustParsedField, [[str]])
 
-    [Doublequote, ..remaining_tokens], Beginning, [] ->
+    [#(Doublequote, _), ..remaining_tokens], Beginning, [] ->
       parse_p(remaining_tokens, InsideEscapedString, [[""]])
 
-    _, Beginning, _ -> Error(Nil)
+    [#(tok, loc), ..], Beginning, _ ->
+      Error(ParseError(
+        loc,
+        "Unexpected start to csv content: " <> token.to_lexeme(tok),
+      ))
 
     // If we just parsed a field, we're expecting either a comma or a CRLF
-    [Comma, ..remaining_tokens], JustParsedField, llf ->
+    [#(Comma, _), ..remaining_tokens], JustParsedField, llf ->
       parse_p(remaining_tokens, JustParsedComma, llf)
 
-    [LF, ..remaining_tokens], JustParsedField, llf ->
+    [#(LF, _), ..remaining_tokens], JustParsedField, llf ->
       parse_p(remaining_tokens, JustParsedNewline, llf)
 
-    [CR, ..remaining_tokens], JustParsedField, llf ->
+    [#(CR, _), ..remaining_tokens], JustParsedField, llf ->
       parse_p(remaining_tokens, JustParsedCR, llf)
 
-    _, JustParsedField, _ -> Error(Nil)
+    [#(tok, loc), ..], JustParsedField, _ ->
+      Error(ParseError(
+        loc,
+        "Expected comma or newline after field, found: " <> token.to_lexeme(tok),
+      ))
 
     // If we just parsed a CR, we're expecting an LF
-    [LF, ..remaining_tokens], JustParsedCR, llf ->
+    [#(LF, _), ..remaining_tokens], JustParsedCR, llf ->
       parse_p(remaining_tokens, JustParsedNewline, llf)
 
-    _, JustParsedCR, _ -> Error(Nil)
+    [#(tok, loc), ..], JustParsedCR, _ ->
+      Error(ParseError(
+        loc,
+        "Expected \"\\n\" after \"\\r\", found: " <> token.to_lexeme(tok),
+      ))
 
     // If we just parsed a comma, we're expecting an Escaped or Non-Escaped string
-    [Textdata(str), ..remaining_tokens], JustParsedComma, [
+    [#(Textdata(str), _), ..remaining_tokens], JustParsedComma, [
       curr_line,
       ..previously_parsed_lines
     ] ->
@@ -80,7 +100,7 @@ fn parse_p(
         ..previously_parsed_lines
       ])
 
-    [Doublequote, ..remaining_tokens], JustParsedComma, [
+    [#(Doublequote, _), ..remaining_tokens], JustParsedComma, [
       curr_line,
       ..previously_parsed_lines
     ] ->
@@ -89,13 +109,19 @@ fn parse_p(
         ..previously_parsed_lines
       ])
 
-    _, JustParsedComma, _ -> Error(Nil)
+    [#(tok, loc), ..], JustParsedComma, _ ->
+      Error(ParseError(
+        loc,
+        "Expected escaped or non-escaped string after comma, found: " <> token.to_lexeme(
+          tok,
+        ),
+      ))
 
     // If we just parsed a new line, we're expecting an escaped or non-escaped string
-    [Textdata(str), ..remaining_tokens], JustParsedNewline, llf ->
+    [#(Textdata(str), _), ..remaining_tokens], JustParsedNewline, llf ->
       parse_p(remaining_tokens, JustParsedField, [[str], ..llf])
 
-    [Doublequote, ..remaining_tokens], JustParsedNewline, [
+    [#(Doublequote, _), ..remaining_tokens], JustParsedNewline, [
       curr_line,
       ..previously_parsed_lines
     ] ->
@@ -104,11 +130,17 @@ fn parse_p(
         ..previously_parsed_lines
       ])
 
-    _, JustParsedNewline, _ -> Error(Nil)
+    [#(tok, loc), ..], JustParsedNewline, _ ->
+      Error(ParseError(
+        loc,
+        "Expected escaped or non-escaped string after newline, found: " <> token.to_lexeme(
+          tok,
+        ),
+      ))
 
     // If we're inside an escaped string, we can take anything until we get a double quote,
     // but a double double quote "" escapes the double quote and we keep parsing
-    [Doublequote, Doublequote, ..remaining_tokens], InsideEscapedString, [
+    [#(Doublequote, _), #(Doublequote, _), ..remaining_tokens], InsideEscapedString, [
       [str, ..rest_curr_line],
       ..previously_parsed_lines
     ] ->
@@ -117,10 +149,10 @@ fn parse_p(
         ..previously_parsed_lines
       ])
 
-    [Doublequote, ..remaining_tokens], InsideEscapedString, llf ->
+    [#(Doublequote, _), ..remaining_tokens], InsideEscapedString, llf ->
       parse_p(remaining_tokens, JustParsedField, llf)
 
-    [other_token, ..remaining_tokens], InsideEscapedString, [
+    [#(other_token, _), ..remaining_tokens], InsideEscapedString, [
       [str, ..rest_curr_line],
       ..previously_parsed_lines
     ] ->
@@ -130,6 +162,7 @@ fn parse_p(
       ])
 
     // Anything else is an error
-    _, _, _ -> Error(Nil)
+    [#(tok, loc), ..], _, _ ->
+      Error(ParseError(loc, "Unexpected token: " <> token.to_lexeme(tok)))
   }
 }

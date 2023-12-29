@@ -19,6 +19,10 @@ pub type CsvToken {
   Textdata(inner: String)
 }
 
+pub type Location {
+  Location(line: Int, column: Int)
+}
+
 pub fn to_lexeme(token: CsvToken) -> String {
   case token {
     Comma -> ","
@@ -26,6 +30,16 @@ pub fn to_lexeme(token: CsvToken) -> String {
     CR -> "\r"
     Doublequote -> "\""
     Textdata(str) -> str
+  }
+}
+
+fn len(token: CsvToken) -> Int {
+  case token {
+    Comma -> 1
+    LF -> 1
+    CR -> 1
+    Doublequote -> 1
+    Textdata(str) -> string.length(str)
   }
 }
 
@@ -48,4 +62,42 @@ pub fn scan(input: String) -> List(CsvToken) {
     }
   })
   |> list.reverse
+}
+
+pub fn with_location(input: List(CsvToken)) -> List(#(CsvToken, Location)) {
+  do_with_location(input, [], Location(1, 1))
+  |> list.reverse
+}
+
+fn do_with_location(
+  input: List(CsvToken),
+  acc: List(#(CsvToken, Location)),
+  curr_loc: Location,
+) -> List(#(CsvToken, Location)) {
+  let Location(line, column) = curr_loc
+  case input {
+    // Base case, no more tokens
+    [] -> acc
+
+    // A newline, increment line number
+    [LF, ..rest] -> {
+      do_with_location(rest, [#(LF, curr_loc), ..acc], Location(line + 1, 1))
+    }
+    [CR, LF, ..rest] -> {
+      do_with_location(
+        rest,
+        [#(LF, Location(line, column + 1)), #(CR, curr_loc), ..acc],
+        Location(line + 1, 1),
+      )
+    }
+
+    // Any other token just increment the column
+    [token, ..rest] -> {
+      do_with_location(
+        rest,
+        [#(token, curr_loc), ..acc],
+        Location(line, column + len(token)),
+      )
+    }
+  }
 }

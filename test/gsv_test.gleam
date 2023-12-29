@@ -1,7 +1,9 @@
 import gleeunit
 import gleeunit/should
-import gsv/internal/token.{CR, Comma, Doublequote, LF, Textdata, scan}
-import gsv/internal/ast.{parse}
+import gsv/internal/token.{
+  CR, Comma, Doublequote, LF, Location, Textdata, scan, with_location,
+}
+import gsv/internal/ast.{ParseError, parse}
 import gsv.{Unix, Windows}
 import gleam/list
 import gleam/result
@@ -31,6 +33,7 @@ pub fn scan_test() {
 pub fn parse_test() {
   "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
   |> scan
+  |> with_location
   |> parse
   |> should.equal(
     Ok([["Ben", " 25", " TRUE\n\r\""], ["Austin", " 25", " FALSE"]]),
@@ -40,7 +43,9 @@ pub fn parse_test() {
 pub fn parse_empty_string_fail_test() {
   ""
   |> scan
+  |> with_location
   |> parse
+  |> result.nil_error
   |> should.equal(Error(Nil))
 }
 
@@ -140,3 +145,31 @@ pub fn for_the_readme_test() {
   |> gsv.from_lists(separator: ",", line_ending: Windows)
   |> should.equal("Hello, World\r\nGoodbye, Mars")
 }
+
+pub fn error_cases_test() {
+  let produce_error = fn(csv_str) {
+    case
+      csv_str
+      |> scan
+      |> with_location
+      |> parse
+    {
+      Ok(_) -> panic as "Expected an error"
+      Error(ParseError(loc, msg)) -> #(loc, msg)
+    }
+  }
+
+  produce_error("Ben, 25,, TRUE")
+  |> should.equal(#(
+    Location(1, 9),
+    "Expected escaped or non-escaped string after comma, found: ,",
+  ))
+  produce_error("Austin, 25, FALSE\n\"Ben Peinhardt\", 25,, TRUE")
+  |> should.equal(#(
+    Location(2, 21),
+    "Expected escaped or non-escaped string after comma, found: ,",
+  ))
+}
+// pub fn totally_panics_test() {
+//   "Ben, 25,, TRUE" |> gsv.to_lists_or_panic
+// }
