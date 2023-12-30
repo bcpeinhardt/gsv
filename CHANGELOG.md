@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v1.2.0 - 29 December 2023
+- Add `to_lists_or_error` function
+
 ## v1.1.0 - 29 December 2023
 - Add a function which panics with an appropriate error message on failure to 
   parse csv. This includes the token location.

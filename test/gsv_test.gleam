@@ -170,6 +170,15 @@ pub fn error_cases_test() {
     "Expected escaped or non-escaped string after comma, found: ,",
   ))
 }
+
 // pub fn totally_panics_test() {
 //   "Ben, 25,, TRUE" |> gsv.to_lists_or_panic
 // }
+
+pub fn totally_errors_test() {
+  "Ben, 25,, TRUE"
+  |> gsv.to_lists_or_error
+  |> should.equal(Error(
+    "[line 1 column 9] of csv: Expected escaped or non-escaped string after comma, found: ,",
+  ))
+}

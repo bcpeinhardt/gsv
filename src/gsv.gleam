@@ -38,6 +38,20 @@ pub fn to_lists_or_panic(input: String) -> List(List(String)) {
   }
 }
 
+/// Parses a csv string to a list of lists of strings.
+/// Automatically handles Windows and Unix line endings.
+/// Returns a string error msg if the string is not valid csv.
+pub fn to_lists_or_error(input: String) -> Result(List(List(String)), String) {
+  input
+  |> token.scan
+  |> token.with_location
+  |> ast.parse
+  |> result.map_error(fn(e) {
+    let ParseError(Location(line, column), msg) = e
+    "[" <> "line " <> int.to_string(line) <> " column " <> int.to_string(column) <> "] of csv: " <> msg
+  })
+}
+
 /// Option for using "\n = LF = Unix" or "\r\n = CRLF = Windows"
 /// line endings. Use with the `from_lists` function when 
 /// writing to a csv string.
