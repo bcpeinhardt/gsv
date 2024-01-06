@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v1.2.1 - 5 January 2024
+- Fix bug with double commas producing error, now produce empty string
+
 ## v1.2.0 - 29 December 2023
 - Add `to_lists_or_error` function
 

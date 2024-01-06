@@ -29,9 +29,13 @@ pub fn to_lists_or_panic(input: String) -> List(List(String)) {
     Ok(lol) -> lol
     Error(ParseError(Location(line, column), msg)) -> {
       panic as {
-        "[" <> "line " <> int.to_string(line) <> " column " <> int.to_string(
-          column,
-        ) <> "] of csv: " <> msg
+        "["
+        <> "line "
+        <> int.to_string(line)
+        <> " column "
+        <> int.to_string(column)
+        <> "] of csv: "
+        <> msg
       }
       [[]]
     }
@@ -48,7 +52,13 @@ pub fn to_lists_or_error(input: String) -> Result(List(List(String)), String) {
   |> ast.parse
   |> result.map_error(fn(e) {
     let ParseError(Location(line, column), msg) = e
-    "[" <> "line " <> int.to_string(line) <> " column " <> int.to_string(column) <> "] of csv: " <> msg
+    "["
+    <> "line "
+    <> int.to_string(line)
+    <> " column "
+    <> int.to_string(column)
+    <> "] of csv: "
+    <> msg
   })
 }
 
@@ -85,10 +95,9 @@ pub fn from_lists(
 
       // If the string contains a , \n \r\n or " it needs to be escaped by wrapping in double quotes
       case
-        string.contains(entry, separator) || string.contains(entry, "\n") || string.contains(
-          entry,
-          "\"",
-        )
+        string.contains(entry, separator)
+        || string.contains(entry, "\n")
+        || string.contains(entry, "\"")
       {
         True -> "\"" <> entry <> "\""
         False -> entry

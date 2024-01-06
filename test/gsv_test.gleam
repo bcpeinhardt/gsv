@@ -159,15 +159,15 @@ pub fn error_cases_test() {
     }
   }
 
-  produce_error("Ben, 25,, TRUE")
+  produce_error("Ben, 25,\n, TRUE")
   |> should.equal(#(
     Location(1, 9),
-    "Expected escaped or non-escaped string after comma, found: ,",
+    "Expected escaped or non-escaped string after comma, found: \n",
   ))
-  produce_error("Austin, 25, FALSE\n\"Ben Peinhardt\", 25,, TRUE")
+  produce_error("Austin, 25, FALSE\n\"Ben Peinhardt\", 25,\n, TRUE")
   |> should.equal(#(
     Location(2, 21),
-    "Expected escaped or non-escaped string after comma, found: ,",
+    "Expected escaped or non-escaped string after comma, found: \n",
   ))
 }
 
@@ -178,7 +178,5 @@ pub fn error_cases_test() {
 pub fn totally_errors_test() {
   "Ben, 25,, TRUE"
   |> gsv.to_lists_or_error
-  |> should.equal(Error(
-    "[line 1 column 9] of csv: Expected escaped or non-escaped string after comma, found: ,",
-  ))
+  |> should.equal(Ok([["Ben", " 25", "", " TRUE"]]))
 }

@@ -90,7 +90,8 @@ fn parse_p(
         "Expected \"\\n\" after \"\\r\", found: " <> token.to_lexeme(tok),
       ))
 
-    // If we just parsed a comma, we're expecting an Escaped or Non-Escaped string
+    // If we just parsed a comma, we're expecting an Escaped or Non-Escaped string, or another comma
+    // (indicating an empty string)
     [#(Textdata(str), _), ..remaining_tokens], JustParsedComma, [
       curr_line,
       ..previously_parsed_lines
@@ -109,12 +110,20 @@ fn parse_p(
         ..previously_parsed_lines
       ])
 
+    [#(Comma, _), ..remaining_tokens], JustParsedComma, [
+      curr_line,
+      ..previously_parsed_lines
+    ] ->
+      parse_p(remaining_tokens, JustParsedComma, [
+        ["", ..curr_line],
+        ..previously_parsed_lines
+      ])
+
     [#(tok, loc), ..], JustParsedComma, _ ->
       Error(ParseError(
         loc,
-        "Expected escaped or non-escaped string after comma, found: " <> token.to_lexeme(
-          tok,
-        ),
+        "Expected escaped or non-escaped string after comma, found: "
+          <> token.to_lexeme(tok),
       ))
 
     // If we just parsed a new line, we're expecting an escaped or non-escaped string
@@ -133,9 +142,8 @@ fn parse_p(
     [#(tok, loc), ..], JustParsedNewline, _ ->
       Error(ParseError(
         loc,
-        "Expected escaped or non-escaped string after newline, found: " <> token.to_lexeme(
-          tok,
-        ),
+        "Expected escaped or non-escaped string after newline, found: "
+          <> token.to_lexeme(tok),
       ))
 
     // If we're inside an escaped string, we can take anything until we get a double quote,
