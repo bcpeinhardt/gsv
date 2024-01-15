@@ -61,7 +61,8 @@ fn parse_p(
     [#(tok, loc), ..], Beginning, _ ->
       Error(ParseError(
         loc,
-        "Unexpected start to csv content: " <> token.to_lexeme(tok),
+        "Unexpected start to csv content: "
+        <> token.to_lexeme(tok),
       ))
 
     // If we just parsed a field, we're expecting either a comma or a CRLF
@@ -77,7 +78,8 @@ fn parse_p(
     [#(tok, loc), ..], JustParsedField, _ ->
       Error(ParseError(
         loc,
-        "Expected comma or newline after field, found: " <> token.to_lexeme(tok),
+        "Expected comma or newline after field, found: "
+        <> token.to_lexeme(tok),
       ))
 
     // If we just parsed a CR, we're expecting an LF
@@ -87,7 +89,8 @@ fn parse_p(
     [#(tok, loc), ..], JustParsedCR, _ ->
       Error(ParseError(
         loc,
-        "Expected \"\\n\" after \"\\r\", found: " <> token.to_lexeme(tok),
+        "Expected \"\\n\" after \"\\r\", found: "
+        <> token.to_lexeme(tok),
       ))
 
     // If we just parsed a comma, we're expecting an Escaped or Non-Escaped string, or another comma
@@ -123,7 +126,7 @@ fn parse_p(
       Error(ParseError(
         loc,
         "Expected escaped or non-escaped string after comma, found: "
-          <> token.to_lexeme(tok),
+        <> token.to_lexeme(tok),
       ))
 
     // If we just parsed a new line, we're expecting an escaped or non-escaped string
@@ -143,7 +146,7 @@ fn parse_p(
       Error(ParseError(
         loc,
         "Expected escaped or non-escaped string after newline, found: "
-          <> token.to_lexeme(tok),
+        <> token.to_lexeme(tok),
       ))
 
     // If we're inside an escaped string, we can take anything until we get a double quote,

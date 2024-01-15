@@ -34,4 +34,4 @@ If available on Hex this package can be added to your Gleam project:
 gleam add csv
 ```
 
-and its documentation can be found at <https://hexdocs.pm/csv>.
+and its documentation can be found at <https://hexdocs.pm/gsv>.
