@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v1.3.1 - 1 February 2024
+- Update to gleam_stdlib = "~> 0.34 or ~> 1.0" in preparation for 1.0
+
 ## v1.2.1 - 5 January 2024
 - Fix bug with double commas producing error, now produce empty string
 
