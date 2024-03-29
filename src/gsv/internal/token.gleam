@@ -8,8 +8,8 @@
 ////  escaped = DQUOTE *(TEXTDATA / COMMA / CR / LF / 2DQUOTE) DQUOTE
 ////  non-escaped = *TEXTDATA
 
-import gleam/string
 import gleam/list
+import gleam/string
 
 pub type CsvToken {
   Comma

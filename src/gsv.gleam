@@ -1,9 +1,9 @@
+import gleam/int
+import gleam/list
+import gleam/result
+import gleam/string
 import gsv/internal/ast.{ParseError}
 import gsv/internal/token.{Location}
-import gleam/list
-import gleam/string
-import gleam/result
-import gleam/int
 
 /// Parses a csv string to a list of lists of strings.
 /// Automatically handles Windows and Unix line endings.

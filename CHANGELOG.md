@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v1.4.0 - 29 March 2024
+- Fix bug where trailing comma was causing error
+
 ## v1.3.1 - 1 February 2024
 - Update to gleam_stdlib = "~> 0.34 or ~> 1.0" in preparation for 1.0
 

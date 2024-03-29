@@ -1,14 +1,14 @@
+import gleam/int
+import gleam/list
+import gleam/result
+import gleam/string
 import gleeunit
 import gleeunit/should
+import gsv.{Unix, Windows}
+import gsv/internal/ast.{ParseError, parse}
 import gsv/internal/token.{
   CR, Comma, Doublequote, LF, Location, Textdata, scan, with_location,
 }
-import gsv/internal/ast.{ParseError, parse}
-import gsv.{Unix, Windows}
-import gleam/list
-import gleam/result
-import gleam/int
-import gleam/string
 
 pub fn main() {
   gleeunit.main()
@@ -161,13 +161,13 @@ pub fn error_cases_test() {
 
   produce_error("Ben, 25,\n, TRUE")
   |> should.equal(#(
-    Location(1, 9),
-    "Expected escaped or non-escaped string after comma, found: \n",
+    Location(2, 1),
+    "Expected escaped or non-escaped string after newline, found: ,",
   ))
   produce_error("Austin, 25, FALSE\n\"Ben Peinhardt\", 25,\n, TRUE")
   |> should.equal(#(
-    Location(2, 21),
-    "Expected escaped or non-escaped string after comma, found: \n",
+    Location(3, 1),
+    "Expected escaped or non-escaped string after newline, found: ,",
   ))
 }
 
@@ -179,4 +179,12 @@ pub fn totally_errors_test() {
   "Ben, 25,, TRUE"
   |> gsv.to_lists_or_error
   |> should.equal(Ok([["Ben", " 25", "", " TRUE"]]))
+}
+
+pub fn trailing_commas_fine_test() {
+  "Ben, 25, TRUE, Hello\nAustin, 25,\n"
+  |> gsv.to_lists
+  |> should.equal(
+    Ok([["Ben", " 25", " TRUE", " Hello"], ["Austin", " 25", ""]]),
+  )
 }

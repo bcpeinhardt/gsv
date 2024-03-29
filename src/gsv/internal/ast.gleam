@@ -92,29 +92,42 @@ fn parse_p(
 
     // If we just parsed a comma, we're expecting an Escaped or Non-Escaped string, or another comma
     // (indicating an empty string)
-    [#(Textdata(str), _), ..remaining_tokens], JustParsedComma, [
-      curr_line,
-      ..previously_parsed_lines
-    ] ->
+    [#(Textdata(str), _), ..remaining_tokens],
+      JustParsedComma,
+      [curr_line, ..previously_parsed_lines] ->
       parse_p(remaining_tokens, JustParsedField, [
         [str, ..curr_line],
         ..previously_parsed_lines
       ])
 
-    [#(Doublequote, _), ..remaining_tokens], JustParsedComma, [
-      curr_line,
-      ..previously_parsed_lines
-    ] ->
+    [#(Doublequote, _), ..remaining_tokens],
+      JustParsedComma,
+      [curr_line, ..previously_parsed_lines] ->
       parse_p(remaining_tokens, InsideEscapedString, [
         ["", ..curr_line],
         ..previously_parsed_lines
       ])
 
-    [#(Comma, _), ..remaining_tokens], JustParsedComma, [
-      curr_line,
-      ..previously_parsed_lines
-    ] ->
+    [#(Comma, _), ..remaining_tokens],
+      JustParsedComma,
+      [curr_line, ..previously_parsed_lines] ->
       parse_p(remaining_tokens, JustParsedComma, [
+        ["", ..curr_line],
+        ..previously_parsed_lines
+      ])
+
+    [#(CR, _), ..remaining_tokens],
+      JustParsedComma,
+      [curr_line, ..previously_parsed_lines] ->
+      parse_p(remaining_tokens, JustParsedCR, [
+        ["", ..curr_line],
+        ..previously_parsed_lines
+      ])
+
+    [#(LF, _), ..remaining_tokens],
+      JustParsedComma,
+      [curr_line, ..previously_parsed_lines] ->
+      parse_p(remaining_tokens, JustParsedNewline, [
         ["", ..curr_line],
         ..previously_parsed_lines
       ])
@@ -130,10 +143,9 @@ fn parse_p(
     [#(Textdata(str), _), ..remaining_tokens], JustParsedNewline, llf ->
       parse_p(remaining_tokens, JustParsedField, [[str], ..llf])
 
-    [#(Doublequote, _), ..remaining_tokens], JustParsedNewline, [
-      curr_line,
-      ..previously_parsed_lines
-    ] ->
+    [#(Doublequote, _), ..remaining_tokens],
+      JustParsedNewline,
+      [curr_line, ..previously_parsed_lines] ->
       parse_p(remaining_tokens, InsideEscapedString, [
         ["", ..curr_line],
         ..previously_parsed_lines
@@ -148,10 +160,9 @@ fn parse_p(
 
     // If we're inside an escaped string, we can take anything until we get a double quote,
     // but a double double quote "" escapes the double quote and we keep parsing
-    [#(Doublequote, _), #(Doublequote, _), ..remaining_tokens], InsideEscapedString, [
-      [str, ..rest_curr_line],
-      ..previously_parsed_lines
-    ] ->
+    [#(Doublequote, _), #(Doublequote, _), ..remaining_tokens],
+      InsideEscapedString,
+      [[str, ..rest_curr_line], ..previously_parsed_lines] ->
       parse_p(remaining_tokens, InsideEscapedString, [
         [str <> "\"", ..rest_curr_line],
         ..previously_parsed_lines
@@ -160,10 +171,9 @@ fn parse_p(
     [#(Doublequote, _), ..remaining_tokens], InsideEscapedString, llf ->
       parse_p(remaining_tokens, JustParsedField, llf)
 
-    [#(other_token, _), ..remaining_tokens], InsideEscapedString, [
-      [str, ..rest_curr_line],
-      ..previously_parsed_lines
-    ] ->
+    [#(other_token, _), ..remaining_tokens],
+      InsideEscapedString,
+      [[str, ..rest_curr_line], ..previously_parsed_lines] ->
       parse_p(remaining_tokens, InsideEscapedString, [
         [str <> token.to_lexeme(other_token), ..rest_curr_line],
         ..previously_parsed_lines
