@@ -31,7 +31,7 @@ pub fn main() {
 If available on Hex this package can be added to your Gleam project:
 
 ```sh
-gleam add csv
+gleam add gsv
 ```
 
 and its documentation can be found at <https://hexdocs.pm/gsv>.
