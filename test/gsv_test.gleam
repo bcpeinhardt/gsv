@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/int
 import gleam/list
 import gleam/result
@@ -35,9 +36,7 @@ pub fn parse_test() {
   |> scan
   |> with_location
   |> parse
-  |> should.equal(
-    Ok([["Ben", " 25", " TRUE\n\r\""], ["Austin", " 25", " FALSE"]]),
-  )
+  |> should.equal(Ok([["Ben", "25", " TRUE\n\r\""], ["Austin", "25", "FALSE"]]))
 }
 
 pub fn parse_empty_string_fail_test() {
@@ -52,9 +51,7 @@ pub fn parse_empty_string_fail_test() {
 pub fn csv_parse_test() {
   "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
   |> gsv.to_lists
-  |> should.equal(
-    Ok([["Ben", " 25", " TRUE\n\r\""], ["Austin", " 25", " FALSE"]]),
-  )
+  |> should.equal(Ok([["Ben", "25", " TRUE\n\r\""], ["Austin", "25", "FALSE"]]))
 }
 
 pub fn scan_crlf_test() {
@@ -72,7 +69,7 @@ pub fn parse_crlf_test() {
 pub fn parse_lfcr_fails_test() {
   "test\n\r"
   |> gsv.to_lists
-  |> should.equal(Error(Nil))
+  |> should.be_error
 }
 
 pub fn last_line_has_optional_line_ending_test() {
@@ -111,7 +108,7 @@ pub fn encode_test() {
   let assert Ok(lls) = gsv.to_lists("Ben, 25\nAustin, 21")
   lls
   |> gsv.from_lists(separator: ",", line_ending: Unix)
-  |> should.equal("Ben, 25\nAustin, 21")
+  |> should.equal("Ben,25\nAustin,21")
 }
 
 pub fn encode_with_escaped_string_test() {
@@ -121,7 +118,7 @@ pub fn encode_with_escaped_string_test() {
 
   lls
   |> gsv.from_lists(separator: ",", line_ending: Unix)
-  |> should.equal("Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE")
+  |> should.equal("Ben,25,\" TRUE\n\r\"\" \"\nAustin,25,FALSE")
 }
 
 pub fn encode_with_escaped_string_windows_test() {
@@ -131,7 +128,7 @@ pub fn encode_with_escaped_string_windows_test() {
 
   lls
   |> gsv.from_lists(separator: ",", line_ending: Windows)
-  |> should.equal("Ben, 25,\" TRUE\n\r\"\" \"\r\nAustin, 25, FALSE")
+  |> should.equal("Ben,25,\" TRUE\n\r\"\" \"\r\nAustin,25,FALSE")
 }
 
 pub fn for_the_readme_test() {
@@ -143,7 +140,7 @@ pub fn for_the_readme_test() {
   // Write a List(List(String)) to a CSV string
   records
   |> gsv.from_lists(separator: ",", line_ending: Windows)
-  |> should.equal("Hello, World\r\nGoodbye, Mars")
+  |> should.equal("Hello,World\r\nGoodbye,Mars")
 }
 
 pub fn error_cases_test() {
@@ -175,16 +172,50 @@ pub fn error_cases_test() {
 //   "Ben, 25,, TRUE" |> gsv.to_lists_or_panic
 // }
 
-pub fn totally_errors_test() {
+pub fn totally_doesnt_error_test() {
   "Ben, 25,, TRUE"
-  |> gsv.to_lists_or_error
-  |> should.equal(Ok([["Ben", " 25", "", " TRUE"]]))
+  |> gsv.to_lists
+  |> should.equal(Ok([["Ben", "25", "", "TRUE"]]))
 }
 
 pub fn trailing_commas_fine_test() {
   "Ben, 25, TRUE, Hello\nAustin, 25,\n"
   |> gsv.to_lists
-  |> should.equal(
-    Ok([["Ben", " 25", " TRUE", " Hello"], ["Austin", " 25", ""]]),
-  )
+  |> should.equal(Ok([["Ben", "25", "TRUE", "Hello"], ["Austin", "25", ""]]))
+}
+
+pub fn headers_test() {
+  "name, age\nBen, 27, TRUE, Hello\nAustin, 27,\n"
+  |> gsv.to_dicts
+  |> should.be_ok
+  |> should.equal([
+    dict.from_list([#("name", "Ben"), #("age", "27")]),
+    dict.from_list([#("name", "Austin"), #("age", "27")]),
+  ])
+}
+
+pub fn dicts_round_trip_test() {
+  "name, age\nBen, 27, TRUE, Hello\nAustin, 27,\n"
+  |> gsv.to_dicts
+  |> should.be_ok
+  |> gsv.from_dicts(",", Unix)
+  |> should.equal("age,name\n27,Ben\n27,Austin")
+}
+
+pub fn dicts_with_empty_str_header_test() {
+  "name,\"  \",   ,,age\nBen,foo,bar,baz,27,extra_data"
+  |> gsv.to_dicts
+  |> should.be_ok
+  |> gsv.from_dicts(",", Unix)
+  |> should.equal("age,name\n27,Ben")
+}
+
+pub fn dicts_with_empty_values_test() {
+  "name, age\nBen,,,,\nAustin, 27"
+  |> gsv.to_dicts
+  |> should.be_ok
+  |> should.equal([
+    dict.from_list([#("name", "Ben")]),
+    dict.from_list([#("age", "27"), #("name", "Austin")]),
+  ])
 }

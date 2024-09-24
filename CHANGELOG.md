@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v2.0.0 - 24 September 2024
+- Now there are four public functions, `to_lists`, `to_dicts`, `from_lists` and `from_dicts`.
+
 ## v1.4.0 - 29 March 2024
 - Fix bug where trailing comma was causing error
 

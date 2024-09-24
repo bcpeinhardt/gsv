@@ -10,6 +10,7 @@
 
 import gleam/list
 import gleam/result
+import gleam/string
 import gsv/internal/token.{
   type CsvToken, type Location, CR, Comma, Doublequote, LF, Location, Textdata,
 }
@@ -53,7 +54,7 @@ fn parse_p(
 
     // File should begin with either Escaped or Nonescaped string
     [#(Textdata(str), _), ..remaining_tokens], Beginning, [] ->
-      parse_p(remaining_tokens, JustParsedField, [[str]])
+      parse_p(remaining_tokens, JustParsedField, [[string.trim(str)]])
 
     [#(Doublequote, _), ..remaining_tokens], Beginning, [] ->
       parse_p(remaining_tokens, InsideEscapedString, [[""]])
@@ -94,15 +95,17 @@ fn parse_p(
     // (indicating an empty string)
     [#(Textdata(str), _), ..remaining_tokens],
       JustParsedComma,
-      [curr_line, ..previously_parsed_lines] ->
+      [curr_line, ..previously_parsed_lines]
+    ->
       parse_p(remaining_tokens, JustParsedField, [
-        [str, ..curr_line],
+        [string.trim(str), ..curr_line],
         ..previously_parsed_lines
       ])
 
     [#(Doublequote, _), ..remaining_tokens],
       JustParsedComma,
-      [curr_line, ..previously_parsed_lines] ->
+      [curr_line, ..previously_parsed_lines]
+    ->
       parse_p(remaining_tokens, InsideEscapedString, [
         ["", ..curr_line],
         ..previously_parsed_lines
@@ -110,7 +113,8 @@ fn parse_p(
 
     [#(Comma, _), ..remaining_tokens],
       JustParsedComma,
-      [curr_line, ..previously_parsed_lines] ->
+      [curr_line, ..previously_parsed_lines]
+    ->
       parse_p(remaining_tokens, JustParsedComma, [
         ["", ..curr_line],
         ..previously_parsed_lines
@@ -118,7 +122,8 @@ fn parse_p(
 
     [#(CR, _), ..remaining_tokens],
       JustParsedComma,
-      [curr_line, ..previously_parsed_lines] ->
+      [curr_line, ..previously_parsed_lines]
+    ->
       parse_p(remaining_tokens, JustParsedCR, [
         ["", ..curr_line],
         ..previously_parsed_lines
@@ -126,7 +131,8 @@ fn parse_p(
 
     [#(LF, _), ..remaining_tokens],
       JustParsedComma,
-      [curr_line, ..previously_parsed_lines] ->
+      [curr_line, ..previously_parsed_lines]
+    ->
       parse_p(remaining_tokens, JustParsedNewline, [
         ["", ..curr_line],
         ..previously_parsed_lines
@@ -141,11 +147,12 @@ fn parse_p(
 
     // If we just parsed a new line, we're expecting an escaped or non-escaped string
     [#(Textdata(str), _), ..remaining_tokens], JustParsedNewline, llf ->
-      parse_p(remaining_tokens, JustParsedField, [[str], ..llf])
+      parse_p(remaining_tokens, JustParsedField, [[string.trim(str)], ..llf])
 
     [#(Doublequote, _), ..remaining_tokens],
       JustParsedNewline,
-      [curr_line, ..previously_parsed_lines] ->
+      [curr_line, ..previously_parsed_lines]
+    ->
       parse_p(remaining_tokens, InsideEscapedString, [
         ["", ..curr_line],
         ..previously_parsed_lines
@@ -162,7 +169,8 @@ fn parse_p(
     // but a double double quote "" escapes the double quote and we keep parsing
     [#(Doublequote, _), #(Doublequote, _), ..remaining_tokens],
       InsideEscapedString,
-      [[str, ..rest_curr_line], ..previously_parsed_lines] ->
+      [[str, ..rest_curr_line], ..previously_parsed_lines]
+    ->
       parse_p(remaining_tokens, InsideEscapedString, [
         [str <> "\"", ..rest_curr_line],
         ..previously_parsed_lines
@@ -173,7 +181,8 @@ fn parse_p(
 
     [#(other_token, _), ..remaining_tokens],
       InsideEscapedString,
-      [[str, ..rest_curr_line], ..previously_parsed_lines] ->
+      [[str, ..rest_curr_line], ..previously_parsed_lines]
+    ->
       parse_p(remaining_tokens, InsideEscapedString, [
         [str <> token.to_lexeme(other_token), ..rest_curr_line],
         ..previously_parsed_lines
