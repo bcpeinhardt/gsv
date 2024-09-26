@@ -219,3 +219,18 @@ pub fn dicts_with_empty_values_test() {
     dict.from_list([#("age", "27"), #("name", "Austin")]),
   ])
 }
+
+pub fn dicts_with_missing_values_test() {
+  let data = [
+    dict.from_list([#("name", "Lucy"), #("score", "100"), #("colour", "Pink")]),
+    dict.from_list([
+      #("name", "Isaac"),
+      #("youtube", "@IsaacHarrisHolt"),
+      #("score", "99"),
+    ]),
+  ]
+  gsv.from_dicts(data, ",", gsv.Unix)
+  |> should.equal(
+    "colour,name,score,youtube\nPink,Lucy,100\nIsaac,99,@IsaacHarrisHolt",
+  )
+}

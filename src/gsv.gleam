@@ -124,11 +124,12 @@ pub fn from_dicts(
 ) -> String {
   case input {
     [] -> ""
-    [first_row, ..] -> {
+    _ -> {
       let headers =
-        first_row
-        |> dict.to_list
-        |> list.map(pair.first)
+        input
+        |> list.map(dict.keys)
+        |> list.flatten
+        |> list.unique
         |> list.sort(string.compare)
 
       let rows =

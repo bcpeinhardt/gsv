@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v2.0.1 - 26 September 2024
+- Patch to consider all headers in from_dicts.
+
 ## v2.0.0 - 24 September 2024
 - Now there are four public functions, `to_lists`, `to_dicts`, `from_lists` and `from_dicts`.
 
