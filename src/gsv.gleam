@@ -134,13 +134,14 @@ pub fn from_dicts(
 
       let rows =
         list.map(input, fn(row) {
-          row
-          |> dict.to_list
-          |> list.sort(fn(lhs, rhs) {
-            string.compare(pair.first(lhs), pair.first(rhs))
+          list.fold(headers, [], fn(acc, h) {
+            case dict.get(row, h) {
+              Ok(v) -> [v, ..acc]
+              Error(Nil) -> ["", ..acc]
+            }
           })
-          |> list.map(pair.second)
         })
+        |> list.map(list.reverse)
 
       from_lists([headers, ..rows], separator, line_ending)
     }

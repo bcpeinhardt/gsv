@@ -231,6 +231,6 @@ pub fn dicts_with_missing_values_test() {
   ]
   gsv.from_dicts(data, ",", gsv.Unix)
   |> should.equal(
-    "colour,name,score,youtube\nPink,Lucy,100\nIsaac,99,@IsaacHarrisHolt",
+    "colour,name,score,youtube\nPink,Lucy,100,\n,Isaac,99,@IsaacHarrisHolt",
   )
 }
