@@ -5,11 +5,24 @@ import gleam/result
 import gleam/string
 import gsv/internal/parse
 
-/// Parses a csv string to a list of lists of strings.
-/// Automatically handles Windows and Unix line endings.
-/// Returns a string error msg if the string is not valid csv.
-/// Unquoted strings are trimmed, while quoted strings have leading and trailing
-/// whitespace preserved.
+/// Parses a csv string into a list of lists of strings.
+/// ## Examples
+///
+/// ```gleam
+/// "hello, world
+/// goodbye, mars
+/// "
+/// |> gsv.to_lists
+/// // [["hello", " world"], ["goodbye", " mars"]]
+/// ```
+///
+/// > This implementation tries to stick as closely as possible to
+/// > [RFC4180](https://www.ietf.org/rfc/rfc4180.txt), with a couple notable
+/// > convenience differences:
+/// > - both `\n` and `\r\n` line endings are accepted.
+/// > - a line can start with an empty field `,two,three`.
+/// > - empty lines are allowed and just ignored.
+///
 pub fn to_lists(input: String) -> Result(List(List(String)), String) {
   parse.parse(input)
   |> result.map_error(fn(error) {
