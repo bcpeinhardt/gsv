@@ -112,7 +112,7 @@ fn do_parse(
     // We take the final field we were in the middle of parsing and add it to
     // the current row that is returned together with all the parsed rows.
     //
-    "", ParsingUnescapedField -> {
+    "", ParsingUnescapedField | "\"", ParsingEscapedField -> {
       let field = extract_field(original, field_start, field_length, status)
       let row = list.reverse([field, ..row])
       Ok(list.reverse([row, ..rows]))
