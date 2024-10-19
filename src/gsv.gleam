@@ -9,7 +9,7 @@ import gsv/internal/token.{Location}
 /// Parses a csv string to a list of lists of strings.
 /// Automatically handles Windows and Unix line endings.
 /// Returns a string error msg if the string is not valid csv.
-/// Unquoted strings are trimmed, while quoted strings have leading and trailing 
+/// Unquoted strings are trimmed, while quoted strings have leading and trailing
 /// whitespace preserved.
 pub fn to_lists(input: String) -> Result(List(List(String)), String) {
   input
@@ -28,14 +28,14 @@ pub fn to_lists(input: String) -> Result(List(List(String)), String) {
   })
 }
 
-/// Parses a csv string to a list of dicts. 
+/// Parses a csv string to a list of dicts.
 /// Automatically handles Windows and Unix line endings.
 /// Returns a string error msg if the string is not valid csv.
-/// Unquoted strings are trimmed, while quoted strings have leading and trailing 
+/// Unquoted strings are trimmed, while quoted strings have leading and trailing
 /// whitespace preserved.
-/// Whitespace only or empty strings are not valid headers and will be ignored. 
-/// Whitespace only or empty strings are not considered "present" in the csv row and 
-/// are not inserted into the row dict. 
+/// Whitespace only or empty strings are not valid headers and will be ignored.
+/// Whitespace only or empty strings are not considered "present" in the csv row and
+/// are not inserted into the row dict.
 pub fn to_dicts(input: String) -> Result(List(Dict(String, String)), String) {
   use lol <- result.try(to_lists(input))
   case lol {
@@ -66,7 +66,7 @@ pub fn to_dicts(input: String) -> Result(List(Dict(String, String)), String) {
 }
 
 /// Option for using "\n = LF = Unix" or "\r\n = CRLF = Windows"
-/// line endings. Use with the `from_lists` function when 
+/// line endings. Use with the `from_lists` function when
 /// writing to a csv string.
 pub type LineEnding {
   Windows
