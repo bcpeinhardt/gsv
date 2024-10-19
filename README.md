@@ -12,7 +12,9 @@ but if you're looking for that now, I'd recommend doing ffi to an existing parse
 import gsv.{Unix, Windows}
 
 pub fn main() {
-  let csv_str = "Hello, World\nGoodbye, Mars"
+  let csv_str =
+    "Hello,World
+Goodbye,Mars"
 
   // Parse a CSV string to a List(List(String))
   let assert Ok(records) = gsv.to_lists(csv_str)
