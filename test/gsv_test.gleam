@@ -72,10 +72,6 @@ pub fn for_the_readme_test() {
   |> should.equal("Hello,World\r\nGoodbye,Mars")
 }
 
-// pub fn totally_panics_test() {
-//   "Ben, 25,, TRUE" |> gsv.to_lists_or_panic
-// }
-
 pub fn totally_doesnt_error_test() {
   "Ben, 25,, TRUE"
   |> gsv.to_lists
