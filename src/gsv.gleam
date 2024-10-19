@@ -1,10 +1,9 @@
 import gleam/dict.{type Dict}
-import gleam/int
+import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
-import gsv/internal/ast.{ParseError}
-import gsv/internal/token.{Location}
+import gsv/internal/parse
 
 /// Parses a csv string to a list of lists of strings.
 /// Automatically handles Windows and Unix line endings.
@@ -12,19 +11,10 @@ import gsv/internal/token.{Location}
 /// Unquoted strings are trimmed, while quoted strings have leading and trailing
 /// whitespace preserved.
 pub fn to_lists(input: String) -> Result(List(List(String)), String) {
-  input
-  |> token.scan
-  |> token.with_location
-  |> ast.parse
-  |> result.map_error(fn(e) {
-    let ParseError(Location(line, column), msg) = e
-    "["
-    <> "line "
-    <> int.to_string(line)
-    <> " column "
-    <> int.to_string(column)
-    <> "] of csv: "
-    <> msg
+  parse.parse(input)
+  |> result.map_error(fn(error) {
+    io.debug(error)
+    todo as "decide what to do with errors"
   })
 }
 
