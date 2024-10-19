@@ -1,8 +1,5 @@
 import gleam/dict
-import gleam/int
-import gleam/list
 import gleam/result
-import gleam/string
 import gleeunit
 import gleeunit/should
 import gsv.{Unix, Windows}
@@ -76,30 +73,6 @@ pub fn last_line_has_optional_line_ending_test() {
   "test\ntest\r\ntest\n"
   |> gsv.to_lists
   |> should.equal(Ok([["test"], ["test"], ["test"]]))
-}
-
-// ---------- Example doing CSV string -> Custom type ------------------------
-pub type User {
-  User(name: String, age: Int)
-}
-
-fn from_list(record: List(String)) -> Result(User, Nil) {
-  use name <- result.try(list.at(record, 0))
-  use age_str <- result.try(list.at(record, 1))
-  use age <- result.try(int.parse(string.trim(age_str)))
-  Ok(User(name, age))
-}
-
-pub fn decode_to_type_test() {
-  let assert Ok(lls) =
-    "Ben, 25\nAustin, 21"
-    |> gsv.to_lists
-  let users =
-    list.fold(lls, [], fn(acc, record) { [from_list(record), ..acc] })
-    |> list.reverse
-
-  users
-  |> should.equal([Ok(User("Ben", 25)), Ok(User("Austin", 21))])
 }
 
 // ---------------------------------------------------------------------------
