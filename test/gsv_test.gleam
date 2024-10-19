@@ -1,4 +1,6 @@
+import birdie
 import gleam/dict
+import gleam/list
 import gleam/string
 import gleeunit
 import gleeunit/should
@@ -189,17 +191,22 @@ pub fn quotes_test() {
 
 pub fn double_quote_in_middle_of_field_test() {
   "field,other\"field"
-  |> gsv.to_lists
-  |> should.be_error
-  |> should.equal(todo)
+  |> pretty_print_error
+  |> birdie.snap("double quote in middle of field")
 }
 
 pub fn unescaped_double_quote_in_escaped_field_test() {
   "'unescaped double quote -> ' in escaped field'"
   |> string.replace(each: "'", with: "\"")
-  |> gsv.to_lists
-  |> should.be_error
-  |> should.equal(todo)
+  |> pretty_print_error
+  |> birdie.snap("unescaped double quote in escaped field")
+}
+
+pub fn unclosed_escaped_field_test() {
+  "'closed','unclosed"
+  |> string.replace(each: "'", with: "\"")
+  |> pretty_print_error
+  |> birdie.snap("unclosed escaped field")
 }
 
 pub fn unescaped_carriage_return_test() {
@@ -254,3 +261,68 @@ fn test_lists_roundtrip(
   let encoded = gsv.from_lists(parsed, separator, line_ending)
   encoded |> should.equal(input)
 }
+
+fn pretty_print_error(input: String) -> String {
+  let assert Error(error) = gsv.to_lists(input)
+  let error_message = error_to_message(error)
+  let #(error_line, error_column) =
+    error_to_position(error)
+    |> position_to_line_and_column(in: input)
+
+  string.replace(in: input, each: "\r\n", with: "\n")
+  |> string.split(on: "\n")
+  |> list.index_map(fn(line, line_number) {
+    case line_number == error_line {
+      False -> line
+      True -> {
+        let padding = string.repeat(" ", error_column)
+        let pointer_line = padding <> "┬"
+        let message_line = padding <> "╰─ " <> error_message
+        line <> "\n" <> pointer_line <> "\n" <> message_line
+      }
+    }
+  })
+  |> string.join(with: "\n")
+}
+
+fn error_to_position(error: gsv.ParseError) -> Int {
+  case error {
+    gsv.UnclosedEscapedField(position) | gsv.UnescapedQuote(position) ->
+      position
+  }
+}
+
+fn error_to_message(error: gsv.ParseError) -> String {
+  case error {
+    gsv.UnclosedEscapedField(_) -> "This escaped field is not closed"
+    gsv.UnescapedQuote(_) -> "This is an unescaped double quote"
+  }
+}
+
+fn position_to_line_and_column(position: Int, in string: String) -> #(Int, Int) {
+  do_position_to_line_and_column(string, position, 0, 0)
+}
+
+fn do_position_to_line_and_column(
+  string: String,
+  position: Int,
+  line: Int,
+  col: Int,
+) -> #(Int, Int) {
+  case position, string {
+    0, _ -> #(line, col)
+    _, "" -> panic as "position out of string bounds"
+    _, "\n" <> rest ->
+      do_position_to_line_and_column(rest, position - 1, line + 1, 0)
+    _, "\r\n" <> rest ->
+      do_position_to_line_and_column(rest, position - 2, line + 1, 0)
+    _, _ -> {
+      let rest = drop_bytes(string, 1)
+      do_position_to_line_and_column(rest, position - 1, line, col + 1)
+    }
+  }
+}
+
+@external(erlang, "gsv_ffi", "drop_bytes")
+@external(javascript, "../src/gsv_ffi.mjs", "drop_bytes")
+fn drop_bytes(string: String, bytes: Int) -> String
