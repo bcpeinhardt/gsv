@@ -1,60 +1,16 @@
 import gleam/dict
-import gleam/result
 import gleeunit
 import gleeunit/should
 import gsv.{Unix, Windows}
-import gsv/internal/ast.{ParseError, parse}
-import gsv/internal/token.{
-  CR, Comma, Doublequote, LF, Location, Textdata, scan, with_location,
-}
 
 pub fn main() {
   gleeunit.main()
-}
-
-pub fn scan_test() {
-  "Ben, 25,\" TRUE\r\n\""
-  |> scan
-  |> should.equal([
-    Textdata("Ben"),
-    Comma,
-    Textdata(" 25"),
-    Comma,
-    Doublequote,
-    Textdata(" TRUE"),
-    CR,
-    LF,
-    Doublequote,
-  ])
-}
-
-pub fn parse_test() {
-  "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
-  |> scan
-  |> with_location
-  |> parse
-  |> should.equal(Ok([["Ben", "25", " TRUE\n\r\""], ["Austin", "25", "FALSE"]]))
-}
-
-pub fn parse_empty_string_fail_test() {
-  ""
-  |> scan
-  |> with_location
-  |> parse
-  |> result.nil_error
-  |> should.equal(Error(Nil))
 }
 
 pub fn csv_parse_test() {
   "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
   |> gsv.to_lists
   |> should.equal(Ok([["Ben", "25", " TRUE\n\r\""], ["Austin", "25", "FALSE"]]))
-}
-
-pub fn scan_crlf_test() {
-  "\r\n"
-  |> scan
-  |> should.equal([CR, LF])
 }
 
 pub fn parse_crlf_test() {
@@ -114,31 +70,6 @@ pub fn for_the_readme_test() {
   records
   |> gsv.from_lists(separator: ",", line_ending: Windows)
   |> should.equal("Hello,World\r\nGoodbye,Mars")
-}
-
-pub fn error_cases_test() {
-  let produce_error = fn(csv_str) {
-    case
-      csv_str
-      |> scan
-      |> with_location
-      |> parse
-    {
-      Ok(_) -> panic as "Expected an error"
-      Error(ParseError(loc, msg)) -> #(loc, msg)
-    }
-  }
-
-  produce_error("Ben, 25,\n, TRUE")
-  |> should.equal(#(
-    Location(2, 1),
-    "Expected escaped or non-escaped string after newline, found: ,",
-  ))
-  produce_error("Austin, 25, FALSE\n\"Ben Peinhardt\", 25,\n, TRUE")
-  |> should.equal(#(
-    Location(3, 1),
-    "Expected escaped or non-escaped string after newline, found: ,",
-  ))
 }
 
 // pub fn totally_panics_test() {
