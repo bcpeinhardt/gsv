@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v2.0.3 - 25 October 2024
+- Patch to remove some unused imports.
+
 ## v2.0.2 - 25 October 2024
 - Patch to fix bug with handling closing quotes before a newline.
 
