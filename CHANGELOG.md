@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## v2.0.2 - 25 October 2024
+- Patch to fix bug with handling closing quotes before a newline.
+
 ## v2.0.1 - 26 September 2024
 - Patch to consider all headers in from_dicts.
 

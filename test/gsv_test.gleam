@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/result
 import gleam/string
@@ -233,4 +234,16 @@ pub fn dicts_with_missing_values_test() {
   |> should.equal(
     "colour,name,score,youtube\nPink,Lucy,100,\n,Isaac,99,@IsaacHarrisHolt",
   )
+}
+
+pub fn quotes_test() {
+  let stringy =
+    "\"Date\",\"Type\",\"Price\",\"Ammount\"\n\"11/11/2024\",\"Apples\",\"7\",\"5\""
+
+  gsv.to_lists(stringy)
+  |> should.be_ok
+  |> should.equal([
+    ["Date", "Type", "Price", "Ammount"],
+    ["11/11/2024", "Apples", "7", "5"],
+  ])
 }
