@@ -154,7 +154,8 @@ fn parse_p(
       [curr_line, ..previously_parsed_lines]
     ->
       parse_p(remaining_tokens, InsideEscapedString, [
-        ["", ..curr_line],
+        [""],
+        curr_line,
         ..previously_parsed_lines
       ])
 
