@@ -1,7 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
-import gleam/pair
 import gleam/result
 import gleam/string
 import gsv/internal/ast.{ParseError}
