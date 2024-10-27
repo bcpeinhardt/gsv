@@ -130,6 +130,14 @@ pub fn escaped_field_with_escaped_double_quotes_test() {
   |> should.equal([["escaped double quote -> \""]])
 }
 
+pub fn rows_with_different_number_of_fields_test() {
+  "three,fields,woo
+only,two"
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["three", "fields", "woo"], ["only", "two"]])
+}
+
 // --- DICT PARSING ------------------------------------------------------------
 
 pub fn headers_test() {
