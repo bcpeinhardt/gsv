@@ -392,91 +392,22 @@ pub fn from_lists(
   line_ending line_ending: LineEnding,
 ) -> String {
   let line_ending = line_ending_to_string(line_ending)
-  do_from_lists(rows, separator, line_ending, [])
-  |> list.reverse
-  |> string.join(with: "")
-}
 
-fn do_from_lists(
-  rows: List(List(String)),
-  separator: String,
-  line_ending: String,
-  acc: List(String),
-) -> List(String) {
-  case rows {
-    [] -> acc
-    // When we're down to the last row, we don't add a final newline at the end
-    // of the string. So we special handle this case and pass in an empty string
-    // as the `line_ending` to add to the row.
-    [last_row] -> row_to_string(last_row, separator, "", acc)
-    // For all other cases we just accumulate the line string onto the string
-    // accumulator.
-    [row, ..rest] -> {
-      let acc = row_to_string(row, separator, line_ending, acc)
-      do_from_lists(rest, separator, line_ending, acc)
-    }
-  }
-}
-
-fn row_to_string(
-  row: List(String),
-  separator: String,
-  line_ending: String,
-  acc: List(String),
-) -> List(String) {
-  case row {
-    [] -> acc
-
-    // When we're down to the last field of the row we need to add the line
-    // ending instead of the field separator. So we special handle this case.
-    [last_field] -> [line_ending, escape_field(last_field, separator), ..acc]
-
-    // For all other cases we add the field to the accumulator and append a
-    // separator to separate it from the next field in the row.
-    [field, ..rest] -> {
-      let acc = [separator, escape_field(field, separator), ..acc]
-      row_to_string(rest, separator, line_ending, acc)
-    }
-  }
-}
-
-/// The kind of escaping needed by a csv field.
-///
-type Escaping {
-  NoEscaping
-  WrapInDoubleQuotes
-  WrapInDoubleQuotesAndEscapeDoubleQuotes
+  list.map(rows, fn(row) {
+    list.map(row, escape_field(_, separator))
+    |> string.join(with: separator)
+  })
+  |> string.join(with: line_ending)
 }
 
 fn escape_field(field: String, separator: String) -> String {
-  case escaping(field, separator) {
-    NoEscaping -> field
-    WrapInDoubleQuotes -> "\"" <> field <> "\""
-    WrapInDoubleQuotesAndEscapeDoubleQuotes ->
-      "\"" <> string.replace(in: field, each: "\"", with: "\"\"") <> "\""
-  }
-}
-
-fn escaping(string: String, separator: String) -> Escaping {
-  case string.contains(string, separator) {
-    True -> do_escaping(string, WrapInDoubleQuotes)
-    False -> do_escaping(string, NoEscaping)
-  }
-}
-
-fn do_escaping(string: String, kind: Escaping) {
-  case string {
-    // As soon as we find a double quote we know that we must escape the double
-    // quotes and wrap it in double quotes, no need to keep going through the
-    // string.
-    "\"" <> _ -> WrapInDoubleQuotesAndEscapeDoubleQuotes
-    // If we find a newline we know the string must at least be wrapped in
-    // double quotes but we keep going in case we find a `"`.
-    "\n" <> rest -> do_escaping(rest, WrapInDoubleQuotes)
-    // If we reach the end of the string we return the accumulator.
-    "" -> kind
-    // In all other cases we keep looking.
-    _ -> do_escaping(drop_bytes(string, 1), kind)
+  case string.contains(field, "\"") {
+    True -> "\"" <> string.replace(in: field, each: "\"", with: "\"\"") <> "\""
+    False ->
+      case string.contains(field, separator) || string.contains(field, "\n") {
+        True -> "\"" <> field <> "\""
+        False -> field
+      }
   }
 }
 
