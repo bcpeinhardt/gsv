@@ -133,7 +133,9 @@ pub fn escaped_field_with_escaped_double_quotes_test() {
 // --- DICT PARSING ------------------------------------------------------------
 
 pub fn headers_test() {
-  "name, age\nBen, 27, TRUE, Hello\nAustin, 27,\n"
+  "name,age
+Ben,27,TRUE,Hello
+Austin,27,"
   |> gsv.to_dicts
   |> should.be_ok
   |> should.equal([
@@ -143,20 +145,30 @@ pub fn headers_test() {
 }
 
 pub fn dicts_with_empty_str_header_test() {
-  "name,\"  \",   ,,age\nBen,foo,bar,baz,27,extra_data"
+  "name,\"  \",   ,,age
+Ben,wibble,wobble,woo,27,extra_data"
   |> gsv.to_dicts
   |> should.be_ok
-  |> gsv.from_dicts(",", Unix)
-  |> should.equal("age,name\n27,Ben")
+  |> should.equal([
+    dict.from_list([
+      #("name", "Ben"),
+      #("  ", "wibble"),
+      #("   ", "wobble"),
+      #("", "woo"),
+      #("age", "27"),
+    ]),
+  ])
 }
 
 pub fn dicts_with_empty_values_test() {
-  "name, age\nBen,,,,\nAustin, 27"
+  "name,age
+Ben,,,,
+Austin,27"
   |> gsv.to_dicts
   |> should.be_ok
   |> should.equal([
     dict.from_list([#("name", "Ben")]),
-    dict.from_list([#("age", "27"), #("name", "Austin")]),
+    dict.from_list([#("name", "Austin"), #("age", "27")]),
   ])
 }
 
@@ -233,21 +245,33 @@ Austin, 25, FALSE"
 }
 
 pub fn encode_with_escaped_string_windows_test() {
-  let assert Ok(lls) =
-    "Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE"
+  let assert Ok(rows) =
+    "Ben, 25,' TRUE\n\r'' '
+Austin, 25, FALSE"
+    |> string.replace(each: "'", with: "\"")
     |> gsv.to_lists
 
-  lls
+  rows
   |> gsv.from_lists(separator: ",", line_ending: Windows)
-  |> should.equal("Ben,25,\" TRUE\n\r\"\" \"\r\nAustin,25,FALSE")
+  |> string.replace(each: "\"", with: "'")
+  |> should.equal(
+    "Ben, 25,' TRUE\n\r'' '\r
+Austin, 25, FALSE",
+  )
 }
 
 pub fn dicts_round_trip_test() {
-  "name, age\nBen, 27, TRUE, Hello\nAustin, 27,\n"
+  "name,age
+Ben,27,TRUE,Hello
+Austin,27,"
   |> gsv.to_dicts
   |> should.be_ok
   |> gsv.from_dicts(",", Unix)
-  |> should.equal("age,name\n27,Ben\n27,Austin")
+  |> should.equal(
+    "age,name
+27,Ben
+27,Austin",
+  )
 }
 
 // --- TEST HELPERS ------------------------------------------------------------
@@ -324,5 +348,5 @@ fn do_position_to_line_and_column(
 }
 
 @external(erlang, "gsv_ffi", "drop_bytes")
-@external(javascript, "../src/gsv_ffi.mjs", "drop_bytes")
+@external(javascript, "./gsv_ffi.mjs", "drop_bytes")
 fn drop_bytes(string: String, bytes: Int) -> String

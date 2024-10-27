@@ -2,17 +2,22 @@ import gleam/dict.{type Dict}
 import gleam/list
 import gleam/result
 import gleam/string
+import glearray
 
 // --- TYPES -------------------------------------------------------------------
 
 pub type ParseError {
+  /// This error can occur if there is a csv field contains an unescaped double
+  /// quote `"`.
+  ///
   /// A field can contain a double quote only if it is escaped (that is,
-  /// surrounded by double quotes). For example `wobb"le` would be an invalid
+  /// surrounded by double quotes). For example `wibb"le` would be an invalid
   /// field, the correct way to write such a field would be like this:
-  /// `"wobb""le"`.
+  /// `"wibb""le"`.
   ///
   UnescapedQuote(
     /// The byte index of the unescaped double.
+    ///
     position: Int,
   )
 
@@ -21,21 +26,45 @@ pub type ParseError {
   ///
   UnclosedEscapedField(
     /// The byte index of the start of the unclosed escaped field.
+    ///
     start: Int,
   )
 }
 
+/// Possible line endings used when turning a parsed csv back into a string
+/// with the `from_lists` and `from_dicts` functions.
+///
+pub type LineEnding {
+  /// The CRLF line ending: `\r\n`.
+  ///
+  Windows
+
+  /// The LF line ending: `\n`.
+  Unix
+}
+
+fn le_to_string(le: LineEnding) -> String {
+  case le {
+    Windows -> "\r\n"
+    Unix -> "\n"
+  }
+}
+
 // --- PARSING -----------------------------------------------------------------
 
-/// Parses a csv string into a list of lists of strings.
+/// Parses a csv string into a list of lists of strings: each line of the csv
+/// will be turned into a list with an item for each field.
+///
 /// ## Examples
 ///
 /// ```gleam
 /// "hello, world
-/// goodbye, mars
-/// "
+/// goodbye, mars"
 /// |> gsv.to_lists
-/// // [["hello", " world"], ["goodbye", " mars"]]
+/// // Ok([
+/// //    ["hello", " world"],
+/// //    ["goodbye", " mars"],
+/// // ])
 /// ```
 ///
 /// > This implementation tries to stick as closely as possible to
@@ -62,9 +91,22 @@ pub fn to_lists(input: String) -> Result(List(List(String)), ParseError) {
 /// This is used to keep track of what the parser is doing.
 ///
 type ParseStatus {
+  /// We're in the middle of parsing an escaped csv field (that is, starting
+  /// and ending with `"`).
+  ///
   ParsingEscapedField
+
+  /// We're in the middle of parsing a regular csv field.
+  ///
   ParsingUnescapedField
+
+  /// We've just ran into a (non escaped) comma, signalling the end of a field.
+  ///
   CommaFound
+
+  /// We've just ran into a (non escaped) newline (either a `\n` or `\r\n`),
+  /// signalling the end of a line and the start of a new one.
+  ///
   NewlineFound
 }
 
@@ -268,59 +310,63 @@ fn extract_field(
   let field = slice_bytes(string, from, length)
   case status {
     CommaFound | ParsingUnescapedField | NewlineFound -> field
+    // If we were parsing an escaped field then escaped quotes must be replaced
+    // with a single one.
     ParsingEscapedField -> string.replace(in: field, each: "\"\"", with: "\"")
   }
 }
 
-/// Parses a csv string to a list of dicts.
-/// Automatically handles Windows and Unix line endings.
-/// Returns a string error msg if the string is not valid csv.
-/// Unquoted strings are trimmed, while quoted strings have leading and trailing
-/// whitespace preserved.
-/// Whitespace only or empty strings are not valid headers and will be ignored.
-/// Whitespace only or empty strings are not considered "present" in the csv row and
-/// are not inserted into the row dict.
+/// Parses a csv string into a list of dicts: the first line of the csv is
+/// interpreted as the headers' row and each of the following lines is turned
+/// into a dict with a value for each of the headers.
+///
+/// If a field is empty then it won't be added to the dict.
+///
+/// ## Examples
+///
+/// ```gleam
+/// "pet,name,cuteness
+/// dog,Fido,100
+/// cat,,1000
+/// "
+/// |> gsv.to_dicts
+/// // Ok([
+/// //    dict.from_list([
+/// //      #("pet", "dog"), #("name", "Fido"), #("cuteness", "100")
+/// //    ]),
+/// //    dict.from_list([
+/// //      #("pet", "cat"), #("cuteness", "1000")
+/// //    ]),
+/// // ])
+/// ```
+///
+/// > Just list `to_lists` this implementation tries to stick as closely as
+/// > possible to [RFC4180](https://www.ietf.org/rfc/rfc4180.txt).
+/// > You can look at `to_lists`' documentation to see how it differs from the
+/// > RFC.
+///
 pub fn to_dicts(input: String) -> Result(List(Dict(String, String)), ParseError) {
-  use lol <- result.try(to_lists(input))
-  case lol {
+  use rows <- result.map(to_lists(input))
+  case rows {
     [] -> []
     [headers, ..rows] -> {
-      let headers =
-        list.index_fold(headers, dict.new(), fn(acc, x, i) {
-          case string.trim(x) == "" {
-            True -> acc
-            False -> dict.insert(acc, i, x)
+      let headers = glearray.from_list(headers)
+
+      use row <- list.map(rows)
+      use row, field, index <- list.index_fold(row, dict.new())
+      case field {
+        // If the field is empty then we don't add it to the row's dict.
+        "" -> row
+        _ ->
+          // We look for the header corresponding to this field's position.
+          case glearray.get(headers, index) {
+            Ok(header) -> dict.insert(row, header, field)
+            // This could happen if the row has more fields than headers in the
+            // header row, in this case the field is just discarded
+            Error(_) -> row
           }
-        })
-
-      list.map(rows, fn(row) {
-        use acc, x, i <- list.index_fold(row, dict.new())
-        case dict.get(headers, i) {
-          Error(Nil) -> acc
-          Ok(h) ->
-            case string.trim(x) {
-              "" -> acc
-              t -> dict.insert(acc, string.trim(h), t)
-            }
-        }
-      })
+      }
     }
-  }
-  |> Ok
-}
-
-/// Option for using "\n = LF = Unix" or "\r\n = CRLF = Windows"
-/// line endings. Use with the `from_lists` function when
-/// writing to a csv string.
-pub type LineEnding {
-  Windows
-  Unix
-}
-
-fn le_to_string(le: LineEnding) -> String {
-  case le {
-    Windows -> "\r\n"
-    Unix -> "\n"
   }
 }
 
@@ -329,6 +375,7 @@ fn le_to_string(le: LineEnding) -> String {
 /// line endings with double quotes (in csv, double quotes get escaped by doing
 /// a double doublequote)
 /// The string `he"llo\n` becomes `"he""llo\n"`
+///
 pub fn from_lists(
   input: List(List(String)),
   separator separator: String,
@@ -360,6 +407,7 @@ pub fn from_lists(
 /// line endings with double quotes (in csv, double quotes get escaped by doing
 /// a double doublequote)
 /// The string `he"llo\n` becomes `"he""llo\n"`
+///
 pub fn from_dicts(
   input: List(Dict(String, String)),
   separator separator: String,
@@ -400,9 +448,9 @@ pub fn from_dicts(
 /// yield valid utf8 slices.
 ///
 @external(erlang, "gsv_ffi", "slice")
-@external(javascript, "../gsv_ffi.mjs", "slice")
+@external(javascript, "./gsv_ffi.mjs", "slice")
 fn slice_bytes(string: String, from: Int, length: Int) -> String
 
 @external(erlang, "gsv_ffi", "drop_bytes")
-@external(javascript, "../gsv_ffi.mjs", "drop_bytes")
+@external(javascript, "./gsv_ffi.mjs", "drop_bytes")
 fn drop_bytes(string: String, bytes: Int) -> String
