@@ -73,6 +73,8 @@ fn line_ending_to_string(le: LineEnding) -> String {
 /// > - both `\n` and `\r\n` line endings are accepted.
 /// > - a line can start with an empty field `,two,three`.
 /// > - empty lines are allowed and just ignored.
+/// > - lines are not forced to all have the same number of fields.
+/// > - a line can end with a comma (meaning its last field is empty).
 ///
 pub fn to_lists(input: String) -> Result(List(List(String)), ParseError) {
   case input {
