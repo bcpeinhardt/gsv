@@ -7,5 +7,5 @@ slice(String, Index, Length) ->
 drop_bytes(String, Bytes) ->
     case String of
         <<_:Bytes/bytes, Rest/binary>> -> Rest;
-        <<>> -> <<>>
+        _ -> String
     end.
