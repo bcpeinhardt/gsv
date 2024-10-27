@@ -392,15 +392,17 @@ pub fn from_lists(
   line_ending line_ending: LineEnding,
 ) -> String {
   let line_ending = line_ending_to_string(line_ending)
-  do_from_lists(rows, separator, line_ending, "")
+  do_from_lists(rows, separator, line_ending, [])
+  |> list.reverse
+  |> string.join(with: "")
 }
 
 fn do_from_lists(
   rows: List(List(String)),
   separator: String,
   line_ending: String,
-  acc: String,
-) -> String {
+  acc: List(String),
+) -> List(String) {
   case rows {
     [] -> acc
     // When we're down to the last row, we don't add a final newline at the end
@@ -420,17 +422,19 @@ fn row_to_string(
   row: List(String),
   separator: String,
   line_ending: String,
-  acc: String,
-) -> String {
+  acc: List(String),
+) -> List(String) {
   case row {
     [] -> acc
+
     // When we're down to the last field of the row we need to add the line
     // ending instead of the field separator. So we special handle this case.
-    [last_field] -> acc <> escape_field(last_field, separator) <> line_ending
+    [last_field] -> [line_ending, escape_field(last_field, separator), ..acc]
+
     // For all other cases we add the field to the accumulator and append a
     // separator to separate it from the next field in the row.
     [field, ..rest] -> {
-      let acc = acc <> escape_field(field, separator) <> separator
+      let acc = [separator, escape_field(field, separator), ..acc]
       row_to_string(rest, separator, line_ending, acc)
     }
   }
@@ -454,10 +458,13 @@ fn escape_field(field: String, separator: String) -> String {
 }
 
 fn escaping(string: String, separator: String) -> Escaping {
-  do_escaping(string, separator, NoEscaping)
+  case string.contains(string, separator) {
+    True -> do_escaping(string, WrapInDoubleQuotes)
+    False -> do_escaping(string, NoEscaping)
+  }
 }
 
-fn do_escaping(string: String, separator: String, kind: Escaping) {
+fn do_escaping(string: String, kind: Escaping) {
   case string {
     // As soon as we find a double quote we know that we must escape the double
     // quotes and wrap it in double quotes, no need to keep going through the
@@ -465,19 +472,11 @@ fn do_escaping(string: String, separator: String, kind: Escaping) {
     "\"" <> _ -> WrapInDoubleQuotesAndEscapeDoubleQuotes
     // If we find a newline we know the string must at least be wrapped in
     // double quotes but we keep going in case we find a `"`.
-    "\n" <> rest -> do_escaping(rest, separator, WrapInDoubleQuotes)
+    "\n" <> rest -> do_escaping(rest, WrapInDoubleQuotes)
     // If we reach the end of the string we return the accumulator.
     "" -> kind
-    // In all other cases we check if the string starts with the separator, in
-    // that case we know it must be at least wrapped in double quotes.
-    // But we keep going in case we find a `"`.
-    _ -> {
-      let assert Ok(#(_, rest)) = string.pop_grapheme(string)
-      case kind == WrapInDoubleQuotes || string.starts_with(string, separator) {
-        True -> do_escaping(rest, separator, WrapInDoubleQuotes)
-        False -> do_escaping(rest, separator, kind)
-      }
-    }
+    // In all other cases we keep looking.
+    _ -> do_escaping(drop_bytes(string, 1), kind)
   }
 }
 
