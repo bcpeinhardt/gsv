@@ -488,33 +488,33 @@ fn do_escaping(string: String, separator: String, kind: Escaping) {
 /// The string `he"llo\n` becomes `"he""llo\n"`
 ///
 pub fn from_dicts(
-  input: List(Dict(String, String)),
+  rows: List(Dict(String, String)),
   separator separator: String,
   line_ending line_ending: LineEnding,
 ) -> String {
-  case input {
+  case rows {
     [] -> ""
     _ -> {
       let headers =
-        input
-        |> list.map(dict.keys)
-        |> list.flatten
+        rows
+        |> list.flat_map(dict.keys)
         |> list.unique
         |> list.sort(string.compare)
 
-      let rows =
-        list.map(input, fn(row) {
-          list.fold(headers, [], fn(acc, h) {
-            case dict.get(row, h) {
-              Ok(v) -> [v, ..acc]
-              Error(Nil) -> ["", ..acc]
-            }
-          })
-        })
-        |> list.map(list.reverse)
-
+      let rows = list.map(rows, row_dict_to_list(_, headers))
       from_lists([headers, ..rows], separator, line_ending)
     }
+  }
+}
+
+fn row_dict_to_list(
+  row: Dict(String, String),
+  headers: List(String),
+) -> List(String) {
+  use header <- list.map(headers)
+  case dict.get(row, header) {
+    Ok(field) -> field
+    Error(Nil) -> ""
   }
 }
 
