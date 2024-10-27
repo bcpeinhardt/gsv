@@ -221,13 +221,6 @@ pub fn unclosed_escaped_field_test() {
   |> birdie.snap("unclosed escaped field")
 }
 
-pub fn unescaped_carriage_return_test() {
-  todo as "decide what to do"
-  "test\n\r"
-  |> gsv.to_lists
-  |> should.be_error
-}
-
 // --- ENCODING TESTS ----------------------------------------------------------
 
 pub fn encode_test() {

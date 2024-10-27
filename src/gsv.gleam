@@ -43,7 +43,7 @@ pub type LineEnding {
   Unix
 }
 
-fn le_to_string(le: LineEnding) -> String {
+fn line_ending_to_string(le: LineEnding) -> String {
   case le {
     Windows -> "\r\n"
     Unix -> "\n"
@@ -370,36 +370,115 @@ pub fn to_dicts(input: String) -> Result(List(Dict(String, String)), ParseError)
   }
 }
 
-/// Takes a list of lists of strings and writes it to a csv string.
-/// Will automatically escape strings that contain double quotes or
-/// line endings with double quotes (in csv, double quotes get escaped by doing
-/// a double doublequote)
-/// The string `he"llo\n` becomes `"he""llo\n"`
+/// Takes a list of lists of strings and turns it to a csv string, automatically
+/// escaping all fields that contain double quotes or line endings.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let rows = [["hello", "world"], ["goodbye", "mars"]]
+/// from_lists(rows, separator: ",", line_ending: Unix)
+/// // "hello,world
+/// // goodbye,mars"
+/// ```
+///
+/// ```gleam
+/// let rows = [[]]
+/// ```
 ///
 pub fn from_lists(
-  input: List(List(String)),
+  rows: List(List(String)),
   separator separator: String,
   line_ending line_ending: LineEnding,
 ) -> String {
-  input
-  |> list.map(fn(row) {
-    list.map(row, fn(entry) {
-      // Double quotes need to be escaped with an extra doublequote
-      let entry = string.replace(entry, "\"", "\"\"")
+  let line_ending = line_ending_to_string(line_ending)
+  do_from_lists(rows, separator, line_ending, "")
+}
 
-      // If the string contains a , \n \r\n or " it needs to be escaped by wrapping in double quotes
-      case
-        string.contains(entry, separator)
-        || string.contains(entry, "\n")
-        || string.contains(entry, "\"")
-      {
-        True -> "\"" <> entry <> "\""
-        False -> entry
+fn do_from_lists(
+  rows: List(List(String)),
+  separator: String,
+  line_ending: String,
+  acc: String,
+) -> String {
+  case rows {
+    [] -> acc
+    // When we're down to the last row, we don't add a final newline at the end
+    // of the string. So we special handle this case and pass in an empty string
+    // as the `line_ending` to add to the row.
+    [last_row] -> row_to_string(last_row, separator, "", acc)
+    // For all other cases we just accumulate the line string onto the string
+    // accumulator.
+    [row, ..rest] -> {
+      let acc = row_to_string(row, separator, line_ending, acc)
+      do_from_lists(rest, separator, line_ending, acc)
+    }
+  }
+}
+
+fn row_to_string(
+  row: List(String),
+  separator: String,
+  line_ending: String,
+  acc: String,
+) -> String {
+  case row {
+    [] -> acc
+    // When we're down to the last field of the row we need to add the line
+    // ending instead of the field separator. So we special handle this case.
+    [last_field] -> acc <> escape_field(last_field, separator) <> line_ending
+    // For all other cases we add the field to the accumulator and append a
+    // separator to separate it from the next field in the row.
+    [field, ..rest] -> {
+      let acc = acc <> escape_field(field, separator) <> separator
+      row_to_string(rest, separator, line_ending, acc)
+    }
+  }
+}
+
+/// The kind of escaping needed by a csv field.
+///
+type Escaping {
+  NoEscaping
+  WrapInDoubleQuotes
+  WrapInDoubleQuotesAndEscapeDoubleQuotes
+}
+
+fn escape_field(field: String, separator: String) -> String {
+  case escaping(field, separator) {
+    NoEscaping -> field
+    WrapInDoubleQuotes -> "\"" <> field <> "\""
+    WrapInDoubleQuotesAndEscapeDoubleQuotes ->
+      "\"" <> string.replace(in: field, each: "\"", with: "\"\"") <> "\""
+  }
+}
+
+fn escaping(string: String, separator: String) -> Escaping {
+  do_escaping(string, separator, NoEscaping)
+}
+
+fn do_escaping(string: String, separator: String, kind: Escaping) {
+  case string {
+    // As soon as we find a double quote we know that we must escape the double
+    // quotes and wrap it in double quotes, no need to keep going through the
+    // string.
+    "\"" <> _ -> WrapInDoubleQuotesAndEscapeDoubleQuotes
+    // If we find a newline we know the string must at least be wrapped in
+    // double quotes but we keep going in case we find a `"`.
+    "\n" <> rest -> do_escaping(rest, separator, WrapInDoubleQuotes)
+    // If we reach the end of the string we return the accumulator.
+    "" -> kind
+    // In all other cases we check if the string starts with the separator, in
+    // that case we know it must be at least wrapped in double quotes.
+    // But we keep going in case we find a `"`.
+    _ -> {
+      let assert Ok(#(_, rest)) = string.pop_grapheme(string)
+      case kind == WrapInDoubleQuotes || string.starts_with(string, separator) {
+        True -> do_escaping(rest, separator, WrapInDoubleQuotes)
+        False -> do_escaping(rest, separator, kind)
       }
-    })
-  })
-  |> list.map(fn(row) { string.join(row, separator) })
-  |> string.join(le_to_string(line_ending))
+    }
+  }
 }
 
 /// Takes a list of dicts and writes it to a csv string.
