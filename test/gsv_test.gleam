@@ -1,191 +1,149 @@
+import birdie
 import gleam/dict
-import gleam/int
 import gleam/list
-import gleam/result
 import gleam/string
 import gleeunit
 import gleeunit/should
-import gsv.{Unix, Windows}
-import gsv/internal/ast.{ParseError, parse}
-import gsv/internal/token.{
-  CR, Comma, Doublequote, LF, Location, Textdata, scan, with_location,
-}
+import gsv.{type LineEnding, Unix, Windows}
 
 pub fn main() {
   gleeunit.main()
 }
 
-pub fn scan_test() {
-  "Ben, 25,\" TRUE\r\n\""
-  |> scan
-  |> should.equal([
-    Textdata("Ben"),
-    Comma,
-    Textdata(" 25"),
-    Comma,
-    Doublequote,
-    Textdata(" TRUE"),
-    CR,
-    LF,
-    Doublequote,
-  ])
-}
-
-pub fn parse_test() {
-  "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
-  |> scan
-  |> with_location
-  |> parse
-  |> should.equal(Ok([["Ben", "25", " TRUE\n\r\""], ["Austin", "25", "FALSE"]]))
-}
-
-pub fn parse_empty_string_fail_test() {
-  ""
-  |> scan
-  |> with_location
-  |> parse
-  |> result.nil_error
-  |> should.equal(Error(Nil))
-}
+// --- LISTS PARSING -----------------------------------------------------------
 
 pub fn csv_parse_test() {
-  "Ben, 25,\" TRUE\n\r\"\"\"\nAustin, 25, FALSE"
+  "Ben,25,true
+Austin,25,false"
   |> gsv.to_lists
-  |> should.equal(Ok([["Ben", "25", " TRUE\n\r\""], ["Austin", "25", "FALSE"]]))
+  |> should.be_ok
+  |> should.equal([["Ben", "25", "true"], ["Austin", "25", "false"]])
 }
 
-pub fn scan_crlf_test() {
-  "\r\n"
-  |> scan
-  |> should.equal([CR, LF])
-}
-
-pub fn parse_crlf_test() {
-  "test\ntest\r\ntest"
+pub fn csv_with_crlf_test() {
+  "Ben,25,true\r
+Austin,25,false"
   |> gsv.to_lists
-  |> should.equal(Ok([["test"], ["test"], ["test"]]))
+  |> should.be_ok
+  |> should.equal([["Ben", "25", "true"], ["Austin", "25", "false"]])
 }
 
-pub fn parse_lfcr_fails_test() {
-  "test\n\r"
+pub fn csv_with_mixed_newline_kinds_test() {
+  "one
+two\r
+three"
   |> gsv.to_lists
-  |> should.be_error
+  |> should.equal(Ok([["one"], ["two"], ["three"]]))
 }
 
-pub fn last_line_has_optional_line_ending_test() {
-  "test\ntest\r\ntest\n"
+pub fn whitespace_is_not_trimmed_from_fields_test() {
+  "Ben , 25 , true
+Austin , 25 , false"
   |> gsv.to_lists
-  |> should.equal(Ok([["test"], ["test"], ["test"]]))
+  |> should.be_ok
+  |> should.equal([["Ben ", " 25 ", " true"], ["Austin ", " 25 ", " false"]])
 }
 
-// ---------- Example doing CSV string -> Custom type ------------------------
-pub type User {
-  User(name: String, age: Int)
-}
+pub fn empty_lines_are_ignored_test() {
+  "
+one
 
-fn from_list(record: List(String)) -> Result(User, Nil) {
-  use name <- result.try(list.at(record, 0))
-  use age_str <- result.try(list.at(record, 1))
-  use age <- result.try(int.parse(string.trim(age_str)))
-  Ok(User(name, age))
-}
-
-pub fn decode_to_type_test() {
-  let assert Ok(lls) =
-    "Ben, 25\nAustin, 21"
-    |> gsv.to_lists
-  let users =
-    list.fold(lls, [], fn(acc, record) { [from_list(record), ..acc] })
-    |> list.reverse
-
-  users
-  |> should.equal([Ok(User("Ben", 25)), Ok(User("Austin", 21))])
-}
-
-// ---------------------------------------------------------------------------
-
-pub fn encode_test() {
-  let assert Ok(lls) = gsv.to_lists("Ben, 25\nAustin, 21")
-  lls
-  |> gsv.from_lists(separator: ",", line_ending: Unix)
-  |> should.equal("Ben,25\nAustin,21")
-}
-
-pub fn encode_with_escaped_string_test() {
-  let assert Ok(lls) =
-    "Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE"
-    |> gsv.to_lists
-
-  lls
-  |> gsv.from_lists(separator: ",", line_ending: Unix)
-  |> should.equal("Ben,25,\" TRUE\n\r\"\" \"\nAustin,25,FALSE")
-}
-
-pub fn encode_with_escaped_string_windows_test() {
-  let assert Ok(lls) =
-    "Ben, 25,\" TRUE\n\r\"\" \"\nAustin, 25, FALSE"
-    |> gsv.to_lists
-
-  lls
-  |> gsv.from_lists(separator: ",", line_ending: Windows)
-  |> should.equal("Ben,25,\" TRUE\n\r\"\" \"\r\nAustin,25,FALSE")
-}
-
-pub fn for_the_readme_test() {
-  let csv_str = "Hello, World\nGoodbye, Mars"
-
-  // Parse a CSV string to a List(List(String))
-  let assert Ok(records) = gsv.to_lists(csv_str)
-
-  // Write a List(List(String)) to a CSV string
-  records
-  |> gsv.from_lists(separator: ",", line_ending: Windows)
-  |> should.equal("Hello,World\r\nGoodbye,Mars")
-}
-
-pub fn error_cases_test() {
-  let produce_error = fn(csv_str) {
-    case
-      csv_str
-      |> scan
-      |> with_location
-      |> parse
-    {
-      Ok(_) -> panic as "Expected an error"
-      Error(ParseError(loc, msg)) -> #(loc, msg)
-    }
-  }
-
-  produce_error("Ben, 25,\n, TRUE")
-  |> should.equal(#(
-    Location(2, 1),
-    "Expected escaped or non-escaped string after newline, found: ,",
-  ))
-  produce_error("Austin, 25, FALSE\n\"Ben Peinhardt\", 25,\n, TRUE")
-  |> should.equal(#(
-    Location(3, 1),
-    "Expected escaped or non-escaped string after newline, found: ,",
-  ))
-}
-
-// pub fn totally_panics_test() {
-//   "Ben, 25,, TRUE" |> gsv.to_lists_or_panic
-// }
-
-pub fn totally_doesnt_error_test() {
-  "Ben, 25,, TRUE"
+two\r
+\r
+three"
   |> gsv.to_lists
-  |> should.equal(Ok([["Ben", "25", "", "TRUE"]]))
+  |> should.be_ok
+  |> should.equal([["one"], ["two"], ["three"]])
 }
 
-pub fn trailing_commas_fine_test() {
-  "Ben, 25, TRUE, Hello\nAustin, 25,\n"
+pub fn last_line_can_end_with_newline_test() {
+  "one\ntwo\n"
   |> gsv.to_lists
-  |> should.equal(Ok([["Ben", "25", "TRUE", "Hello"], ["Austin", "25", ""]]))
+  |> should.be_ok
+  |> should.equal([["one"], ["two"]])
 }
+
+pub fn empty_fields_test() {
+  "one,,three"
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["one", "", "three"]])
+}
+
+pub fn csv_ending_with_an_empty_field_test() {
+  "one,two,"
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["one", "two", ""]])
+}
+
+pub fn csv_starting_with_an_empty_field_test() {
+  ",two,three"
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["", "two", "three"]])
+}
+
+pub fn escaped_field_test() {
+  "'gleam','functional'
+'erlang','functional'"
+  // Writing and escaping the double quotes by hand is a bit noisy and makes it
+  // hard to read the literal string so I prefer to write single quotes
+  // and replace those before parsing :P
+  |> string.replace(each: "'", with: "\"")
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["gleam", "functional"], ["erlang", "functional"]])
+}
+
+pub fn escaped_field_with_newlines_test() {
+  "'wibble
+wobble','wibble'"
+  |> string.replace(each: "'", with: "\"")
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["wibble\nwobble", "wibble"]])
+}
+
+pub fn escaped_field_with_crlf_test() {
+  "'wibble\r
+wobble','wibble'"
+  |> string.replace(each: "'", with: "\"")
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["wibble\r\nwobble", "wibble"]])
+}
+
+pub fn escaped_field_with_comma_test() {
+  "'wibble,wobble','wibble'"
+  |> string.replace(each: "'", with: "\"")
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["wibble,wobble", "wibble"]])
+}
+
+pub fn escaped_field_with_escaped_double_quotes_test() {
+  "'escaped double quote -> '''"
+  |> string.replace(each: "'", with: "\"")
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["escaped double quote -> \""]])
+}
+
+pub fn rows_with_different_number_of_fields_test() {
+  "three,fields,woo
+only,two"
+  |> gsv.to_lists
+  |> should.be_ok
+  |> should.equal([["three", "fields", "woo"], ["only", "two"]])
+}
+
+// --- DICT PARSING ------------------------------------------------------------
 
 pub fn headers_test() {
-  "name, age\nBen, 27, TRUE, Hello\nAustin, 27,\n"
+  "name,age
+Ben,27,TRUE,Hello
+Austin,27,"
   |> gsv.to_dicts
   |> should.be_ok
   |> should.equal([
@@ -194,29 +152,31 @@ pub fn headers_test() {
   ])
 }
 
-pub fn dicts_round_trip_test() {
-  "name, age\nBen, 27, TRUE, Hello\nAustin, 27,\n"
-  |> gsv.to_dicts
-  |> should.be_ok
-  |> gsv.from_dicts(",", Unix)
-  |> should.equal("age,name\n27,Ben\n27,Austin")
-}
-
 pub fn dicts_with_empty_str_header_test() {
-  "name,\"  \",   ,,age\nBen,foo,bar,baz,27,extra_data"
+  "name,\"  \",   ,,age
+Ben,wibble,wobble,woo,27,extra_data"
   |> gsv.to_dicts
   |> should.be_ok
-  |> gsv.from_dicts(",", Unix)
-  |> should.equal("age,name\n27,Ben")
+  |> should.equal([
+    dict.from_list([
+      #("name", "Ben"),
+      #("  ", "wibble"),
+      #("   ", "wobble"),
+      #("", "woo"),
+      #("age", "27"),
+    ]),
+  ])
 }
 
 pub fn dicts_with_empty_values_test() {
-  "name, age\nBen,,,,\nAustin, 27"
+  "name,age
+Ben,,,,
+Austin,27"
   |> gsv.to_dicts
   |> should.be_ok
   |> should.equal([
     dict.from_list([#("name", "Ben")]),
-    dict.from_list([#("age", "27"), #("name", "Austin")]),
+    dict.from_list([#("name", "Austin"), #("age", "27")]),
   ])
 }
 
@@ -246,3 +206,148 @@ pub fn quotes_test() {
     ["11/11/2024", "Apples", "7", "5"],
   ])
 }
+
+// --- TESTING ERRORS ----------------------------------------------------------
+
+pub fn double_quote_in_middle_of_field_test() {
+  "field,other\"field"
+  |> pretty_print_error
+  |> birdie.snap("double quote in middle of field")
+}
+
+pub fn unescaped_double_quote_in_escaped_field_test() {
+  "'unescaped double quote -> ' in escaped field'"
+  |> string.replace(each: "'", with: "\"")
+  |> pretty_print_error
+  |> birdie.snap("unescaped double quote in escaped field")
+}
+
+pub fn unclosed_escaped_field_test() {
+  "'closed','unclosed"
+  |> string.replace(each: "'", with: "\"")
+  |> pretty_print_error
+  |> birdie.snap("unclosed escaped field")
+}
+
+// --- ENCODING TESTS ----------------------------------------------------------
+
+pub fn encode_test() {
+  "Ben, 25
+Austin, 21"
+  |> test_lists_roundtrip(",", Unix)
+}
+
+pub fn encode_with_escaped_string_test() {
+  "Ben, 25,' TRUE
+\r'' '
+Austin, 25, FALSE"
+  |> string.replace(each: "'", with: "\"")
+  |> test_lists_roundtrip(",", Unix)
+}
+
+pub fn encode_with_escaped_string_windows_test() {
+  let assert Ok(rows) =
+    "Ben, 25,' TRUE\n\r'' '
+Austin, 25, FALSE"
+    |> string.replace(each: "'", with: "\"")
+    |> gsv.to_lists
+
+  rows
+  |> gsv.from_lists(separator: ",", line_ending: Windows)
+  |> string.replace(each: "\"", with: "'")
+  |> should.equal(
+    "Ben, 25,' TRUE\n\r'' '\r
+Austin, 25, FALSE",
+  )
+}
+
+pub fn dicts_round_trip_test() {
+  "name,age
+Ben,27,TRUE,Hello
+Austin,27,"
+  |> gsv.to_dicts
+  |> should.be_ok
+  |> gsv.from_dicts(",", Unix)
+  |> should.equal(
+    "age,name
+27,Ben
+27,Austin",
+  )
+}
+
+// --- TEST HELPERS ------------------------------------------------------------
+
+fn test_lists_roundtrip(
+  input: String,
+  separator: String,
+  line_ending: LineEnding,
+) -> Nil {
+  let assert Ok(parsed) = gsv.to_lists(input)
+  let encoded = gsv.from_lists(parsed, separator, line_ending)
+  encoded |> should.equal(input)
+}
+
+fn pretty_print_error(input: String) -> String {
+  let assert Error(error) = gsv.to_lists(input)
+  let error_message = error_to_message(error)
+  let #(error_line, error_column) =
+    error_to_position(error)
+    |> position_to_line_and_column(in: input)
+
+  string.replace(in: input, each: "\r\n", with: "\n")
+  |> string.split(on: "\n")
+  |> list.index_map(fn(line, line_number) {
+    case line_number == error_line {
+      False -> line
+      True -> {
+        let padding = string.repeat(" ", error_column)
+        let pointer_line = padding <> "┬"
+        let message_line = padding <> "╰─ " <> error_message
+        line <> "\n" <> pointer_line <> "\n" <> message_line
+      }
+    }
+  })
+  |> string.join(with: "\n")
+}
+
+fn error_to_position(error: gsv.ParseError) -> Int {
+  case error {
+    gsv.UnclosedEscapedField(position) | gsv.UnescapedQuote(position) ->
+      position
+  }
+}
+
+fn error_to_message(error: gsv.ParseError) -> String {
+  case error {
+    gsv.UnclosedEscapedField(_) -> "This escaped field is not closed"
+    gsv.UnescapedQuote(_) -> "This is an unescaped double quote"
+  }
+}
+
+fn position_to_line_and_column(position: Int, in string: String) -> #(Int, Int) {
+  do_position_to_line_and_column(string, position, 0, 0)
+}
+
+fn do_position_to_line_and_column(
+  string: String,
+  position: Int,
+  line: Int,
+  col: Int,
+) -> #(Int, Int) {
+  case position, string {
+    0, _ -> #(line, col)
+    _, "" -> panic as "position out of string bounds"
+    _, "\n" <> rest ->
+      do_position_to_line_and_column(rest, position - 1, line + 1, 0)
+    _, "\r\n" <> rest ->
+      do_position_to_line_and_column(rest, position - 2, line + 1, 0)
+    _, _ -> {
+      let rest = drop_bytes(string, 1)
+      do_position_to_line_and_column(rest, position - 1, line, col + 1)
+    }
+  }
+}
+
+@external(erlang, "gsv_ffi", "drop_bytes")
+@external(javascript, "./gsv_ffi.mjs", "drop_bytes")
+fn drop_bytes(string: String, bytes: Int) -> String

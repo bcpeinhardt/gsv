@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Improved performance of `to_lists`, `to_dicts`, `from_lists` and `from_lists`.
+- Parsing now doesn't trim the csv fields, conforming to RFC4180.
+- The `to_lists` and `to_dicts` functions now return a structured error instead
+  of a `String`.
 
 ## v2.0.3 - 25 October 2024
 - Patch to remove some unused imports.

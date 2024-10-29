@@ -1,0 +1,9 @@
+---
+version: 1.2.3
+title: double quote in middle of field
+file: ./test/gsv_test.gleam
+test_name: double_quote_in_middle_of_field_test
+---
+field,other"field
+           ┬
+           ╰─ This is an unescaped double quote
