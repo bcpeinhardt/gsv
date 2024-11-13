@@ -400,6 +400,7 @@ pub fn from_lists(
     |> string.join(with: separator)
   })
   |> string.join(with: line_ending)
+  |> string.append(line_ending)
 }
 
 fn escape_field(field: String, separator: String) -> String {

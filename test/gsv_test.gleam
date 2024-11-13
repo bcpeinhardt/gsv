@@ -191,7 +191,7 @@ pub fn dicts_with_missing_values_test() {
   ]
   gsv.from_dicts(data, ",", gsv.Unix)
   |> should.equal(
-    "colour,name,score,youtube\nPink,Lucy,100,\n,Isaac,99,@IsaacHarrisHolt",
+    "colour,name,score,youtube\nPink,Lucy,100,\n,Isaac,99,@IsaacHarrisHolt\n",
   )
 }
 
@@ -257,7 +257,7 @@ Austin, 25, FALSE"
   |> string.replace(each: "\"", with: "'")
   |> should.equal(
     "Ben, 25,' TRUE\n\r'' '\r
-Austin, 25, FALSE",
+Austin, 25, FALSE\r\n",
   )
 }
 
@@ -271,7 +271,7 @@ Austin,27,"
   |> should.equal(
     "age,name
 27,Ben
-27,Austin",
+27,Austin\n",
   )
 }
 
@@ -284,7 +284,10 @@ fn test_lists_roundtrip(
 ) -> Nil {
   let assert Ok(parsed) = gsv.to_lists(input)
   let encoded = gsv.from_lists(parsed, separator, line_ending)
-  encoded |> should.equal(input)
+  case input |> string.ends_with("\n") {
+    True -> encoded |> should.equal(input)
+    False -> encoded |> should.equal(input <> "\n")
+  }
 }
 
 fn pretty_print_error(input: String) -> String {

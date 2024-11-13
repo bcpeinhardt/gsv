@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.0.1 - 13 November 2024
+- `from_lists` and consequently `from_dicts` now append a line ending to the end
+  of the produced string. This is a patch release because the RFC states line endings
+  after the final row are optional, but most people will want them.
+
 ## v3.0.0 - 4 November 2024
 - Improved performance of `to_lists`, `to_dicts`, `from_lists` and `from_lists`.
 - Parsing now doesn't trim the csv fields, conforming to RFC4180.
