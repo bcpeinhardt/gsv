@@ -1,5 +1,8 @@
 # Changelog
 
+## v3.0.2 - 8 January 2025
+- Dependency requirement for `glearray` has been relaxed to permit v1 or v2.
+
 ## v3.0.1 - 13 November 2024
 - `from_lists` and consequently `from_dicts` now append a line ending to the end
   of the produced string. This is a patch release because the RFC states line endings
