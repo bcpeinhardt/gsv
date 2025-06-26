@@ -50,6 +50,27 @@ fn line_ending_to_string(le: LineEnding) -> String {
   }
 }
 
+/// Possible field separators used when parsing csv data
+///
+pub type FieldSeparator {
+  /// RFC4180 field separator
+  Comma
+
+  /// Tab seperated fields
+  Tab
+
+  /// Custom seperator
+  Custom(String)
+}
+
+fn field_separator_to_string(fs: FieldSeparator) -> String {
+  case fs {
+    Comma -> ","
+    Tab -> "\t"
+    Custom(sep) -> sep
+  }
+}
+
 // --- PARSING -----------------------------------------------------------------
 
 /// Parses a csv string into a list of lists of strings: each line of the csv
@@ -76,17 +97,32 @@ fn line_ending_to_string(le: LineEnding) -> String {
 /// > - lines are not forced to all have the same number of fields.
 /// > - a line can end with a comma (meaning its last field is empty).
 ///
-pub fn to_lists(input: String) -> Result(List(List(String)), ParseError) {
-  case input {
+pub fn to_lists(
+  input: String,
+  field_separator: FieldSeparator,
+) -> Result(List(List(String)), ParseError) {
+  let sep = field_separator_to_string(field_separator)
+  case input, string.starts_with(input, sep) {
     // We just ignore all unescaped newlines at the beginning of a file.
-    "\n" <> rest | "\r\n" <> rest -> to_lists(rest)
+    "\n" <> rest, _ | "\r\n" <> rest, _ -> to_lists(rest, field_separator)
     // If it starts with a `"` then we know it starts with an escaped field.
-    "\"" <> rest -> do_parse(rest, input, 1, 0, [], [], ParsingEscapedField)
-    // If it starts with a `,` then it starts with an empty field we're filling
+    "\"" <> rest, _ ->
+      do_parse(rest, input, 1, 0, [], [], ParsingEscapedField, sep)
+    // If it starts with a field seperator then it starts with an empty field we're filling
     // out manually.
-    "," <> rest -> do_parse(rest, input, 1, 0, [""], [], CommaFound)
+    rest, True ->
+      do_parse(
+        string.drop_start(rest, string.length(sep)),
+        input,
+        1,
+        0,
+        [""],
+        [],
+        SeparatorFound,
+        sep,
+      )
     // Otherwise we just start parsing the first unescaped field.
-    _ -> do_parse(input, input, 0, 0, [], [], ParsingUnescapedField)
+    _, False -> do_parse(input, input, 0, 0, [], [], ParsingUnescapedField, sep)
   }
 }
 
@@ -102,14 +138,29 @@ type ParseStatus {
   ///
   ParsingUnescapedField
 
-  /// We've just ran into a (non escaped) comma, signalling the end of a field.
+  /// We've just ran into a (non escaped) field separator, signalling the end of a field.
   ///
-  CommaFound
+  SeparatorFound
 
   /// We've just ran into a (non escaped) newline (either a `\n` or `\r\n`),
   /// signalling the end of a line and the start of a new one.
   ///
   NewlineFound
+}
+
+/// This is used to keep track of whether a separator was observed at the head of the input.
+///
+type SepStatus {
+  /// An escaped field has ended followed by a field seperator
+  ///
+  QuotSep
+
+  /// A field separator was observed
+  ///
+  Sep
+
+  /// No field separator was observed
+  NoSep
 }
 
 /// ## What does this scary looking function do?
@@ -146,60 +197,76 @@ fn do_parse(
   row: List(String),
   rows: List(List(String)),
   status: ParseStatus,
+  field_separator: String,
 ) -> Result(List(List(String)), ParseError) {
-  case string, status {
-    // If we find a comma we're done with the current field and can take a slice
+  let sep_len = string.length(field_separator)
+  let #(remaining, skip, sep) = case
+    string.starts_with(string, field_separator)
+  {
+    True -> #(string.drop_start(string, sep_len), sep_len, Sep)
+    False ->
+      case string.starts_with(string, "\"" <> field_separator) {
+        True -> #(string.drop_start(string, sep_len + 1), sep_len + 1, QuotSep)
+        False -> #(string, 0, NoSep)
+      }
+  }
+  case remaining, status, sep {
+    // If we find a separator we're done with the current field and can take a slice
     // going from `field_start` with `field_length` bytes:
     //
-    //     wibble,wobble,...
+    //     wibble<sep>wobble,...
     //     ╰────╯ field_length = 6
     //     ┬
     //     ╰ field_start
     //
     // After taking the slice we move the slice start _after_ the comma:
     //
-    //     wibble,wobble,...
-    //            ┬
-    //            ╰ field_start = field_start + field_length + 1 (the comma)
+    //     wibble<sep>wobble,...
+    //                ┬
+    //                ╰ field_start = field_start + field_length + skip (the length of the separator)
     //
-    "," <> rest, CommaFound
-    | "," <> rest, NewlineFound
-    | "," <> rest, ParsingUnescapedField
+    rest, SeparatorFound, Sep
+    | rest, NewlineFound, Sep
+    | rest, ParsingUnescapedField, Sep
+    | rest, ParsingEscapedField, QuotSep
     -> {
       let field = extract_field(original, field_start, field_length, status)
       let row = [field, ..row]
-      let field_start = field_start + field_length + 1
-      do_parse(rest, original, field_start, 0, row, rows, CommaFound)
-    }
-    "\"," <> rest, ParsingEscapedField -> {
-      let field = extract_field(original, field_start, field_length, status)
-      let row = [field, ..row]
-      let field_start = field_start + field_length + 2
-      do_parse(rest, original, field_start, 0, row, rows, CommaFound)
+      let start = field_start + field_length + skip
+      do_parse(
+        rest,
+        original,
+        start,
+        0,
+        row,
+        rows,
+        SeparatorFound,
+        field_separator,
+      )
     }
 
     // When the string is over we're done parsing.
     // We take the final field we were in the middle of parsing and add it to
     // the current row that is returned together with all the parsed rows.
     //
-    "", ParsingUnescapedField | "\"", ParsingEscapedField -> {
+    "", ParsingUnescapedField, NoSep | "\"", ParsingEscapedField, NoSep -> {
       let field = extract_field(original, field_start, field_length, status)
       let row = list.reverse([field, ..row])
       Ok(list.reverse([row, ..rows]))
     }
 
-    "", CommaFound -> {
+    "", SeparatorFound, NoSep -> {
       let row = list.reverse(["", ..row])
       Ok(list.reverse([row, ..rows]))
     }
 
-    "", NewlineFound -> Ok(list.reverse(rows))
+    "", NewlineFound, NoSep -> Ok(list.reverse(rows))
 
     // If the string is over and we were parsing an escaped field, that's an
     // error. We would expect to find a closing double quote before the end of
     // the data.
     //
-    "", ParsingEscapedField -> Error(UnclosedEscapedField(field_start))
+    "", ParsingEscapedField, NoSep -> Error(UnclosedEscapedField(field_start))
 
     // When we run into a new line (CRLF or just LF) we know we're done with the
     // current field and take a slice of it, just like we did in the previous
@@ -217,66 +284,149 @@ fn do_parse(
     // adding the lenght of that but it had a noticeable (albeit small) impact
     // on performance.
     //
-    "\n" <> rest, ParsingUnescapedField -> {
+    "\n" <> rest, ParsingUnescapedField, NoSep -> {
       let field = extract_field(original, field_start, field_length, status)
       let row = list.reverse([field, ..row])
       let rows = [row, ..rows]
       let field_start = field_start + field_length + 1
-      do_parse(rest, original, field_start, 0, [], rows, NewlineFound)
+      do_parse(
+        rest,
+        original,
+        field_start,
+        0,
+        [],
+        rows,
+        NewlineFound,
+        field_separator,
+      )
     }
-    "\r\n" <> rest, ParsingUnescapedField | "\"\n" <> rest, ParsingEscapedField -> {
+    "\r\n" <> rest, ParsingUnescapedField, NoSep
+    | "\"\n" <> rest, ParsingEscapedField, NoSep
+    -> {
       let field = extract_field(original, field_start, field_length, status)
       let row = list.reverse([field, ..row])
       let rows = [row, ..rows]
       let field_start = field_start + field_length + 2
-      do_parse(rest, original, field_start, 0, [], rows, NewlineFound)
+      do_parse(
+        rest,
+        original,
+        field_start,
+        0,
+        [],
+        rows,
+        NewlineFound,
+        field_separator,
+      )
     }
-    "\"\r\n" <> rest, ParsingEscapedField -> {
+    "\"\r\n" <> rest, ParsingEscapedField, NoSep -> {
       let field = extract_field(original, field_start, field_length, status)
       let row = list.reverse([field, ..row])
       let rows = [row, ..rows]
       let field_start = field_start + field_length + 3
-      do_parse(rest, original, field_start, 0, [], rows, NewlineFound)
+      do_parse(
+        rest,
+        original,
+        field_start,
+        0,
+        [],
+        rows,
+        NewlineFound,
+        field_separator,
+      )
     }
 
-    // If the newlines is immediately after a comma then the row ends with an
+    // If the newlines is immediately after a field separator then the row ends with an
     // empty field.
     //
-    "\n" <> rest, CommaFound -> {
+    "\n" <> rest, SeparatorFound, NoSep -> {
       let row = list.reverse(["", ..row])
       let rows = [row, ..rows]
-      do_parse(rest, original, field_start + 1, 0, [], rows, NewlineFound)
+      do_parse(
+        rest,
+        original,
+        field_start + 1,
+        0,
+        [],
+        rows,
+        NewlineFound,
+        field_separator,
+      )
     }
-    "\r\n" <> rest, CommaFound -> {
+    "\r\n" <> rest, SeparatorFound, NoSep -> {
       let row = list.reverse(["", ..row])
       let rows = [row, ..rows]
-      do_parse(rest, original, field_start + 2, 0, [], rows, NewlineFound)
+      do_parse(
+        rest,
+        original,
+        field_start + 2,
+        0,
+        [],
+        rows,
+        NewlineFound,
+        field_separator,
+      )
     }
 
     // If the newline immediately comes after a newline that means we've run
     // into an empty line that we can just safely ignore.
     //
-    "\n" <> rest, NewlineFound ->
-      do_parse(rest, original, field_start + 1, 0, row, rows, status)
-    "\r\n" <> rest, NewlineFound ->
-      do_parse(rest, original, field_start + 2, 0, row, rows, status)
+    "\n" <> rest, NewlineFound, NoSep ->
+      do_parse(
+        rest,
+        original,
+        field_start + 1,
+        0,
+        row,
+        rows,
+        status,
+        field_separator,
+      )
+    "\r\n" <> rest, NewlineFound, NoSep ->
+      do_parse(
+        rest,
+        original,
+        field_start + 2,
+        0,
+        row,
+        rows,
+        status,
+        field_separator,
+      )
 
     // An escaped quote found while parsing an escaped field.
     //
-    "\"\"" <> rest, ParsingEscapedField ->
-      do_parse(rest, original, field_start, field_length + 2, row, rows, status)
+    "\"\"" <> rest, ParsingEscapedField, NoSep ->
+      do_parse(
+        rest,
+        original,
+        field_start,
+        field_length + 2,
+        row,
+        rows,
+        status,
+        field_separator,
+      )
 
     // An unescaped quote found while parsing a field.
     //
-    "\"" <> _, ParsingUnescapedField | "\"" <> _, ParsingEscapedField ->
-      Error(UnescapedQuote(position: field_start + field_length))
+    "\"" <> _, ParsingUnescapedField, NoSep
+    | "\"" <> _, ParsingEscapedField, NoSep
+    -> Error(UnescapedQuote(position: field_start + field_length))
 
     // If the quote is found immediately after a comma or a newline that signals
     // the start of a new escaped field to parse.
     //
-    "\"" <> rest, CommaFound | "\"" <> rest, NewlineFound -> {
-      let status = ParsingEscapedField
-      do_parse(rest, original, field_start + 1, 0, row, rows, status)
+    "\"" <> rest, SeparatorFound, NoSep | "\"" <> rest, NewlineFound, NoSep -> {
+      do_parse(
+        rest,
+        original,
+        field_start + 1,
+        0,
+        row,
+        rows,
+        ParsingEscapedField,
+        field_separator,
+      )
     }
 
     // In all other cases we're still parsing a field so we just drop a byte
@@ -287,18 +437,27 @@ fn do_parse(
     // > beginning or end of a field: RFC 4810 states that "Spaces are
     // > considered part of a field and should not be ignored."
     //
-    _, CommaFound
-    | _, NewlineFound
-    | _, ParsingUnescapedField
-    | _, ParsingEscapedField
+    _, SeparatorFound, _
+    | _, NewlineFound, _
+    | _, ParsingUnescapedField, _
+    | _, ParsingEscapedField, _
     -> {
       let status = case status {
         ParsingEscapedField -> ParsingEscapedField
-        CommaFound | NewlineFound | ParsingUnescapedField ->
+        SeparatorFound | NewlineFound | ParsingUnescapedField ->
           ParsingUnescapedField
       }
       let rest = drop_bytes(string, 1)
-      do_parse(rest, original, field_start, field_length + 1, row, rows, status)
+      do_parse(
+        rest,
+        original,
+        field_start,
+        field_length + 1,
+        row,
+        rows,
+        status,
+        field_separator,
+      )
     }
   }
 }
@@ -311,7 +470,7 @@ fn extract_field(
 ) -> String {
   let field = slice_bytes(string, from, length)
   case status {
-    CommaFound | ParsingUnescapedField | NewlineFound -> field
+    SeparatorFound | ParsingUnescapedField | NewlineFound -> field
     // If we were parsing an escaped field then escaped quotes must be replaced
     // with a single one.
     ParsingEscapedField -> string.replace(in: field, each: "\"\"", with: "\"")
@@ -347,8 +506,11 @@ fn extract_field(
 /// > You can look at `to_lists`' documentation to see how it differs from the
 /// > RFC.
 ///
-pub fn to_dicts(input: String) -> Result(List(Dict(String, String)), ParseError) {
-  use rows <- result.map(to_lists(input))
+pub fn to_dicts(
+  input: String,
+  field_separator: FieldSeparator,
+) -> Result(List(Dict(String, String)), ParseError) {
+  use rows <- result.map(to_lists(input, field_separator))
   case rows {
     [] -> []
     [headers, ..rows] -> {
@@ -390,14 +552,15 @@ pub fn to_dicts(input: String) -> Result(List(Dict(String, String)), ParseError)
 ///
 pub fn from_lists(
   rows: List(List(String)),
-  separator separator: String,
+  separator separator: FieldSeparator,
   line_ending line_ending: LineEnding,
 ) -> String {
   let line_ending = line_ending_to_string(line_ending)
+  let sep = field_separator_to_string(separator)
 
   list.map(rows, fn(row) {
-    list.map(row, escape_field(_, separator))
-    |> string.join(with: separator)
+    list.map(row, escape_field(_, sep))
+    |> string.join(with: sep)
   })
   |> string.join(with: line_ending)
   |> string.append(line_ending)
@@ -422,7 +585,7 @@ fn escape_field(field: String, separator: String) -> String {
 ///
 pub fn from_dicts(
   rows: List(Dict(String, String)),
-  separator separator: String,
+  separator separator: FieldSeparator,
   line_ending line_ending: LineEnding,
 ) -> String {
   case rows {
