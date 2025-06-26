@@ -413,7 +413,7 @@ fn do_parse(
     | "\"" <> _, ParsingEscapedField, NoSep
     -> Error(UnescapedQuote(position: field_start + field_length))
 
-    // If the quote is found immediately after a comma or a newline that signals
+    // If the quote is found immediately after a field separator or a newline that signals
     // the start of a new escaped field to parse.
     //
     "\"" <> rest, SeparatorFound, NoSep | "\"" <> rest, NewlineFound, NoSep -> {
@@ -619,7 +619,7 @@ fn row_dict_to_list(
 /// In general this wouldn't be safe, by just slicing random bytes in the middle
 /// of a utf8 string we might end up with something that is not a valid utf8
 /// string.
-/// However, the parser only slices fields in between commas so it should always
+/// However, the parser only slices fields in between separators so it should always
 /// yield valid utf8 slices.
 ///
 @external(erlang, "gsv_ffi", "slice")
