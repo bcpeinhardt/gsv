@@ -50,27 +50,6 @@ fn line_ending_to_string(le: LineEnding) -> String {
   }
 }
 
-/// Possible field separators used when parsing csv data
-///
-pub type FieldSeparator {
-  /// RFC4180 field separator
-  Comma
-
-  /// Tab seperated fields
-  Tab
-
-  /// Custom seperator
-  Custom(String)
-}
-
-fn field_separator_to_string(fs: FieldSeparator) -> String {
-  case fs {
-    Comma -> ","
-    Tab -> "\t"
-    Custom(sep) -> sep
-  }
-}
-
 // --- PARSING -----------------------------------------------------------------
 
 /// Parses a csv string into a list of lists of strings: each line of the csv
@@ -81,7 +60,7 @@ fn field_separator_to_string(fs: FieldSeparator) -> String {
 /// ```gleam
 /// "hello, world
 /// goodbye, mars"
-/// |> gsv.to_lists
+/// |> gsv.to_lists(seperator: ",")
 /// // Ok([
 /// //    ["hello", " world"],
 /// //    ["goodbye", " mars"],
@@ -99,30 +78,39 @@ fn field_separator_to_string(fs: FieldSeparator) -> String {
 ///
 pub fn to_lists(
   input: String,
-  field_separator: FieldSeparator,
+  separator field_separator: String,
 ) -> Result(List(List(String)), ParseError) {
-  let sep = field_separator_to_string(field_separator)
-  case input, string.starts_with(input, sep) {
+  case input, string.starts_with(input, field_separator) {
     // We just ignore all unescaped newlines at the beginning of a file.
     "\n" <> rest, _ | "\r\n" <> rest, _ -> to_lists(rest, field_separator)
     // If it starts with a `"` then we know it starts with an escaped field.
     "\"" <> rest, _ ->
-      do_parse(rest, input, 1, 0, [], [], ParsingEscapedField, sep)
+      do_parse(rest, input, 1, 0, [], [], ParsingEscapedField, field_separator)
     // If it starts with a field seperator then it starts with an empty field we're filling
     // out manually.
     rest, True ->
       do_parse(
-        string.drop_start(rest, string.length(sep)),
+        string.drop_start(rest, string.length(field_separator)),
         input,
         1,
         0,
         [""],
         [],
         SeparatorFound,
-        sep,
+        field_separator,
       )
     // Otherwise we just start parsing the first unescaped field.
-    _, False -> do_parse(input, input, 0, 0, [], [], ParsingUnescapedField, sep)
+    _, False ->
+      do_parse(
+        input,
+        input,
+        0,
+        0,
+        [],
+        [],
+        ParsingUnescapedField,
+        field_separator,
+      )
   }
 }
 
@@ -490,7 +478,7 @@ fn extract_field(
 /// dog,Fido,100
 /// cat,,1000
 /// "
-/// |> gsv.to_dicts
+/// |> gsv.to_dicts(separator: ",")
 /// // Ok([
 /// //    dict.from_list([
 /// //      #("pet", "dog"), #("name", "Fido"), #("cuteness", "100")
@@ -508,7 +496,7 @@ fn extract_field(
 ///
 pub fn to_dicts(
   input: String,
-  field_separator: FieldSeparator,
+  separator field_separator: String,
 ) -> Result(List(Dict(String, String)), ParseError) {
   use rows <- result.map(to_lists(input, field_separator))
   case rows {
@@ -552,15 +540,14 @@ pub fn to_dicts(
 ///
 pub fn from_lists(
   rows: List(List(String)),
-  separator separator: FieldSeparator,
+  separator separator: String,
   line_ending line_ending: LineEnding,
 ) -> String {
   let line_ending = line_ending_to_string(line_ending)
-  let sep = field_separator_to_string(separator)
 
   list.map(rows, fn(row) {
-    list.map(row, escape_field(_, sep))
-    |> string.join(with: sep)
+    list.map(row, escape_field(_, separator))
+    |> string.join(with: separator)
   })
   |> string.join(with: line_ending)
   |> string.append(line_ending)
@@ -585,7 +572,7 @@ fn escape_field(field: String, separator: String) -> String {
 ///
 pub fn from_dicts(
   rows: List(Dict(String, String)),
-  separator separator: FieldSeparator,
+  separator separator: String,
   line_ending line_ending: LineEnding,
 ) -> String {
   case rows {
