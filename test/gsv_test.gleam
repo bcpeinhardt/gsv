@@ -36,6 +36,22 @@ pub fn csv_with_custom_sep_test() {
   |> should.equal([["One", "Two", "Three"], ["1", "2", "3"]])
 }
 
+pub fn csv_with_long_custom_sep_test() {
+  "One//Two//Three
+1//2//3"
+  |> gsv.to_lists(separator: "//")
+  |> should.be_ok
+  |> should.equal([["One", "Two", "Three"], ["1", "2", "3"]])
+}
+
+pub fn csv_with_weird_custom_sep_test() {
+  "A-|-B-|-C-|-D
+a-|-b-|-c-|-d"
+  |> gsv.to_lists(separator: "-|-")
+  |> should.be_ok
+  |> should.equal([["A", "B", "C", "D"], ["a", "b", "c", "d"]])
+}
+
 pub fn csv_with_mixed_newline_kinds_test() {
   "one
 two\r

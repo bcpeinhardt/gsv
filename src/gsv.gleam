@@ -74,7 +74,8 @@ fn line_ending_to_string(le: LineEnding) -> String {
 /// > - a line can start with an empty field `,two,three`.
 /// > - empty lines are allowed and just ignored.
 /// > - lines are not forced to all have the same number of fields.
-/// > - a line can end with a comma (meaning its last field is empty).
+/// > - the field seperator doesn't have to be a comma but any string (even multiple characters).
+/// > - a line can end with a field seperator (meaning its last field is empty).
 ///
 pub fn to_lists(
   input: String,
@@ -148,6 +149,7 @@ type SepStatus {
   Sep
 
   /// No field separator was observed
+  ///
   NoSep
 }
 
@@ -207,7 +209,7 @@ fn do_parse(
     //     ┬
     //     ╰ field_start
     //
-    // After taking the slice we move the slice start _after_ the comma:
+    // After taking the slice we move the slice start _after_ the field separator:
     //
     //     wibble<sep>wobble,...
     //                ┬
