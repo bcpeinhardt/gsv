@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- Added a `separator` parameter to `to_lists` and `to_dicts` as a way of specifying
+  non-standard CSV field separators.
+- Added a `FieldSeparator` type to specify common field separators.
+
 ## v3.0.2 - 8 January 2025
 - Dependency requirement for `glearray` has been relaxed to permit v1 or v2.
 

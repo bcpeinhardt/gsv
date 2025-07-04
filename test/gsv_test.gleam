@@ -15,31 +15,55 @@ pub fn main() {
 pub fn csv_parse_test() {
   "Ben,25,true
 Austin,25,false"
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["Ben", "25", "true"], ["Austin", "25", "false"]])
 }
 
 pub fn csv_with_crlf_test() {
-  "Ben,25,true\r
-Austin,25,false"
-  |> gsv.to_lists
+  "Ben\t25\ttrue\r
+Austin\t25\tfalse"
+  |> gsv.to_lists(separator: "\t")
   |> should.be_ok
   |> should.equal([["Ben", "25", "true"], ["Austin", "25", "false"]])
+}
+
+pub fn csv_with_custom_sep_test() {
+  "One|Two|Three
+1|2|3"
+  |> gsv.to_lists(separator: "|")
+  |> should.be_ok
+  |> should.equal([["One", "Two", "Three"], ["1", "2", "3"]])
+}
+
+pub fn csv_with_long_custom_sep_test() {
+  "One//Two//Three
+1//2//3"
+  |> gsv.to_lists(separator: "//")
+  |> should.be_ok
+  |> should.equal([["One", "Two", "Three"], ["1", "2", "3"]])
+}
+
+pub fn csv_with_weird_custom_sep_test() {
+  "A-|-B-|-C-|-D
+a-|-b-|-c-|-d"
+  |> gsv.to_lists(separator: "-|-")
+  |> should.be_ok
+  |> should.equal([["A", "B", "C", "D"], ["a", "b", "c", "d"]])
 }
 
 pub fn csv_with_mixed_newline_kinds_test() {
   "one
 two\r
 three"
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.equal(Ok([["one"], ["two"], ["three"]]))
 }
 
 pub fn whitespace_is_not_trimmed_from_fields_test() {
   "Ben , 25 , true
 Austin , 25 , false"
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["Ben ", " 25 ", " true"], ["Austin ", " 25 ", " false"]])
 }
@@ -51,35 +75,35 @@ one
 two\r
 \r
 three"
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["one"], ["two"], ["three"]])
 }
 
 pub fn last_line_can_end_with_newline_test() {
   "one\ntwo\n"
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: "|")
   |> should.be_ok
   |> should.equal([["one"], ["two"]])
 }
 
 pub fn empty_fields_test() {
-  "one,,three"
-  |> gsv.to_lists
+  "one||three"
+  |> gsv.to_lists(separator: "|")
   |> should.be_ok
   |> should.equal([["one", "", "three"]])
 }
 
 pub fn csv_ending_with_an_empty_field_test() {
   "one,two,"
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["one", "two", ""]])
 }
 
 pub fn csv_starting_with_an_empty_field_test() {
   ",two,three"
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["", "two", "three"]])
 }
@@ -91,7 +115,7 @@ pub fn escaped_field_test() {
   // hard to read the literal string so I prefer to write single quotes
   // and replace those before parsing :P
   |> string.replace(each: "'", with: "\"")
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["gleam", "functional"], ["erlang", "functional"]])
 }
@@ -100,7 +124,7 @@ pub fn escaped_field_with_newlines_test() {
   "'wibble
 wobble','wibble'"
   |> string.replace(each: "'", with: "\"")
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["wibble\nwobble", "wibble"]])
 }
@@ -109,7 +133,7 @@ pub fn escaped_field_with_crlf_test() {
   "'wibble\r
 wobble','wibble'"
   |> string.replace(each: "'", with: "\"")
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["wibble\r\nwobble", "wibble"]])
 }
@@ -117,7 +141,7 @@ wobble','wibble'"
 pub fn escaped_field_with_comma_test() {
   "'wibble,wobble','wibble'"
   |> string.replace(each: "'", with: "\"")
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["wibble,wobble", "wibble"]])
 }
@@ -125,7 +149,7 @@ pub fn escaped_field_with_comma_test() {
 pub fn escaped_field_with_escaped_double_quotes_test() {
   "'escaped double quote -> '''"
   |> string.replace(each: "'", with: "\"")
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["escaped double quote -> \""]])
 }
@@ -133,7 +157,7 @@ pub fn escaped_field_with_escaped_double_quotes_test() {
 pub fn rows_with_different_number_of_fields_test() {
   "three,fields,woo
 only,two"
-  |> gsv.to_lists
+  |> gsv.to_lists(separator: ",")
   |> should.be_ok
   |> should.equal([["three", "fields", "woo"], ["only", "two"]])
 }
@@ -144,7 +168,7 @@ pub fn headers_test() {
   "name,age
 Ben,27,TRUE,Hello
 Austin,27,"
-  |> gsv.to_dicts
+  |> gsv.to_dicts(separator: ",")
   |> should.be_ok
   |> should.equal([
     dict.from_list([#("name", "Ben"), #("age", "27")]),
@@ -155,7 +179,7 @@ Austin,27,"
 pub fn dicts_with_empty_str_header_test() {
   "name,\"  \",   ,,age
 Ben,wibble,wobble,woo,27,extra_data"
-  |> gsv.to_dicts
+  |> gsv.to_dicts(separator: ",")
   |> should.be_ok
   |> should.equal([
     dict.from_list([
@@ -172,7 +196,7 @@ pub fn dicts_with_empty_values_test() {
   "name,age
 Ben,,,,
 Austin,27"
-  |> gsv.to_dicts
+  |> gsv.to_dicts(separator: ",")
   |> should.be_ok
   |> should.equal([
     dict.from_list([#("name", "Ben")]),
@@ -199,7 +223,7 @@ pub fn quotes_test() {
   let stringy =
     "\"Date\",\"Type\",\"Price\",\"Ammount\"\n\"11/11/2024\",\"Apples\",\"7\",\"5\""
 
-  gsv.to_lists(stringy)
+  gsv.to_lists(stringy, separator: ",")
   |> should.be_ok
   |> should.equal([
     ["Date", "Type", "Price", "Ammount"],
@@ -250,7 +274,7 @@ pub fn encode_with_escaped_string_windows_test() {
     "Ben, 25,' TRUE\n\r'' '
 Austin, 25, FALSE"
     |> string.replace(each: "'", with: "\"")
-    |> gsv.to_lists
+    |> gsv.to_lists(separator: ",")
 
   rows
   |> gsv.from_lists(separator: ",", line_ending: Windows)
@@ -265,7 +289,7 @@ pub fn dicts_round_trip_test() {
   "name,age
 Ben,27,TRUE,Hello
 Austin,27,"
-  |> gsv.to_dicts
+  |> gsv.to_dicts(separator: ",")
   |> should.be_ok
   |> gsv.from_dicts(",", Unix)
   |> should.equal(
@@ -282,7 +306,7 @@ fn test_lists_roundtrip(
   separator: String,
   line_ending: LineEnding,
 ) -> Nil {
-  let assert Ok(parsed) = gsv.to_lists(input)
+  let assert Ok(parsed) = gsv.to_lists(input, separator: ",")
   let encoded = gsv.from_lists(parsed, separator, line_ending)
   case input |> string.ends_with("\n") {
     True -> encoded |> should.equal(input)
@@ -291,7 +315,7 @@ fn test_lists_roundtrip(
 }
 
 fn pretty_print_error(input: String) -> String {
-  let assert Error(error) = gsv.to_lists(input)
+  let assert Error(error) = gsv.to_lists(input, ",")
   let error_message = error_to_message(error)
   let #(error_line, error_column) =
     error_to_position(error)
