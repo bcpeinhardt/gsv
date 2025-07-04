@@ -19,7 +19,7 @@ lucy,gleam"
 
   // If your csv has headers you can also parse it into a list of dictionaries.
   let assert Ok(rows) = gsv.to_dicts(csv_str, ",")
-  // -> dict.from_list([#("name", "lucy"), #("loves", "gleam")])
+  // -> [dict.from_list([#("name", "lucy"), #("loves", "gleam")])]
 }
 ```
 
