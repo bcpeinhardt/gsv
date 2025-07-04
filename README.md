@@ -14,11 +14,11 @@ pub fn main() {
 lucy,gleam"
 
   // Parse a csv string into a list of rows.
-  let assert Ok(rows) = gsv.to_lists(csv)
+  let assert Ok(rows) = gsv.to_lists(csv, ",")
   // -> [["name", "loves"], ["lucy", "gleam"]]
 
   // If your csv has headers you can also parse it into a list of dictionaries.
-  let assert Ok(rows) = gsv.to_dicts(csv_str)
+  let assert Ok(rows) = gsv.to_dicts(csv_str, ",")
   // -> dict.from_list([#("name", "lucy"), #("loves", "gleam")])
 }
 ```
