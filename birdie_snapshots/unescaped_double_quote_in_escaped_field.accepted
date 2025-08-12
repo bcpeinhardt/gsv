@@ -1,9 +1,0 @@
----
-version: 1.2.3
-title: unescaped double quote in escaped field
-file: ./test/gsv_test.gleam
-test_name: unescaped_double_quote_in_escaped_field_test
----
-"unescaped double quote -> " in escaped field"
-                           ┬
-                           ╰─ This is an unescaped double quote

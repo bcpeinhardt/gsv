@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- The performance of `to_lists` and `to_dicts` has been improved.
+- The `ParseError` type has been renamed to `Error`.
+- The `UnescapedQuote` and `MissingClosingQuote` errors now include the line
+  where the error occurs instead of a hard to read byte number.
 
 ## v4.0.0 - 8 January 2025
 - Added a `separator` parameter to `to_lists` and `to_dicts` as a way of specifying
