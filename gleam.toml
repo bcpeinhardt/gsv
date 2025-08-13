@@ -1,5 +1,5 @@
 name = "gsv"
-version = "4.0.0"
+version = "5.0.0"
 gleam = ">= 1.11.0"
 description = "A simple csv parser and generator written in gleam "
 

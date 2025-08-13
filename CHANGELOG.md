@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## v5.0.0 - 13 August 2025
 - The performance of `to_lists` and `to_dicts` has been improved.
 - The `ParseError` type has been renamed to `Error`.
 - The `UnescapedQuote` and `MissingClosingQuote` errors now include the line
