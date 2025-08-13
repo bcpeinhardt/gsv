@@ -1,9 +1,0 @@
----
-version: 1.2.3
-title: unclosed escaped field
-file: ./test/gsv_test.gleam
-test_name: unclosed_escaped_field_test
----
-"closed","unclosed
-          ┬
-          ╰─ This escaped field is not closed

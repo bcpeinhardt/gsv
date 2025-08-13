@@ -3,33 +3,9 @@ import gleam/list
 import gleam/result
 import gleam/string
 import glearray
+import splitter
 
 // --- TYPES -------------------------------------------------------------------
-
-pub type ParseError {
-  /// This error can occur if there is a csv field contains an unescaped double
-  /// quote `"`.
-  ///
-  /// A field can contain a double quote only if it is escaped (that is,
-  /// surrounded by double quotes). For example `wibb"le` would be an invalid
-  /// field, the correct way to write such a field would be like this:
-  /// `"wibb""le"`.
-  ///
-  UnescapedQuote(
-    /// The byte index of the unescaped double.
-    ///
-    position: Int,
-  )
-
-  /// This error can occur when the file ends without the closing `"` of an
-  /// escaped field. For example: `"hello`.
-  ///
-  UnclosedEscapedField(
-    /// The byte index of the start of the unclosed escaped field.
-    ///
-    start: Int,
-  )
-}
 
 /// Possible line endings used when turning a parsed csv back into a string
 /// with the `from_lists` and `from_dicts` functions.
@@ -43,6 +19,41 @@ pub type LineEnding {
   Unix
 }
 
+/// An error that could occurr trying to parse a csv file.
+///
+pub type Error {
+  /// This happens when a field that is not escaped contains a double quote,
+  /// like this:
+  ///
+  /// ```csv
+  /// first field,second "field",third field
+  /// ```
+  ///
+  /// If a field needs to have quotes it should be escaped like this:
+  ///
+  /// ```csv
+  /// first field,"second ""field""",third field
+  /// ```
+  ///
+  UnescapedQuote(
+    /// The line where the unescaped quote is found.
+    line: Int,
+  )
+
+  /// This happens when there's an escaped field that is missing a closing
+  /// quote, like this:
+  ///
+  /// ```csv
+  /// first field,"escaped but I'm missing the closing quote
+  /// some other field,one last field
+  /// ```
+  ///
+  MissingClosingQuote(
+    /// The line where the field with the missing closing quote starts.
+    starting_line: Int,
+  )
+}
+
 fn line_ending_to_string(le: LineEnding) -> String {
   case le {
     Windows -> "\r\n"
@@ -51,6 +62,20 @@ fn line_ending_to_string(le: LineEnding) -> String {
 }
 
 // --- PARSING -----------------------------------------------------------------
+
+type Splitters {
+  Splitters(
+    separator: String,
+    /// A splitter that matches with either `\n` or `\r\n`.
+    newlines: splitter.Splitter,
+    /// A splitter that matches with either a `,` separator, or the escape
+    /// character `"`.
+    separator_or_quote: splitter.Splitter,
+    /// A splitter that matches with either the escape charater (a single `"`),
+    /// or with an escaped quote (two `"` in a row).
+    quotes: splitter.Splitter,
+  )
+}
 
 /// Parses a csv string into a list of lists of strings: each line of the csv
 /// will be turned into a list with an item for each field.
@@ -68,402 +93,196 @@ fn line_ending_to_string(le: LineEnding) -> String {
 /// ```
 ///
 /// > This implementation tries to stick as closely as possible to
-/// > [RFC4180](https://www.ietf.org/rfc/rfc4180.txt), with a couple notable
-/// > convenience differences:
+/// > [RFC4180](https://www.ietf.org/rfc/rfc4180.txt), with a couple of notable
+/// > differences:
 /// > - both `\n` and `\r\n` line endings are accepted.
-/// > - a line can start with an empty field `,two,three`.
 /// > - empty lines are allowed and just ignored.
 /// > - lines are not forced to all have the same number of fields.
-/// > - the field seperator doesn't have to be a comma but any string (even multiple characters).
-/// > - a line can end with a field seperator (meaning its last field is empty).
-///
+/// > - a line can start with an empty field `,two,three`.
+/// > - a line can end with an empty field `one,two,`.
 pub fn to_lists(
-  input: String,
-  separator field_separator: String,
-) -> Result(List(List(String)), ParseError) {
-  case input, string.starts_with(input, field_separator) {
-    // We just ignore all unescaped newlines at the beginning of a file.
-    "\n" <> rest, _ | "\r\n" <> rest, _ -> to_lists(rest, field_separator)
-    // If it starts with a `"` then we know it starts with an escaped field.
-    "\"" <> rest, _ ->
-      do_parse(rest, input, 1, 0, [], [], ParsingEscapedField, field_separator)
-    // If it starts with a field seperator then it starts with an empty field we're filling
-    // out manually.
-    rest, True ->
-      do_parse(
-        string.drop_start(rest, string.length(field_separator)),
-        input,
-        1,
-        0,
-        [""],
-        [],
-        SeparatorFound,
-        field_separator,
-      )
-    // Otherwise we just start parsing the first unescaped field.
-    _, False ->
-      do_parse(
-        input,
-        input,
-        0,
-        0,
-        [],
-        [],
-        ParsingUnescapedField,
-        field_separator,
-      )
-  }
+  csv: String,
+  separator separator: String,
+) -> Result(List(List(String)), Error) {
+  let splitters =
+    Splitters(
+      separator:,
+      newlines: splitter.new(["\r\n", "\n"]),
+      separator_or_quote: splitter.new([separator, "\""]),
+      quotes: splitter.new(["\"\"", "\""]),
+    )
+
+  lines_loop(csv, splitters, 0, [])
 }
 
-/// This is used to keep track of what the parser is doing.
-///
-type ParseStatus {
-  /// We're in the middle of parsing an escaped csv field (that is, starting
-  /// and ending with `"`).
-  ///
-  ParsingEscapedField
-
-  /// We're in the middle of parsing a regular csv field.
-  ///
-  ParsingUnescapedField
-
-  /// We've just ran into a (non escaped) field separator, signalling the end of a field.
-  ///
-  SeparatorFound
-
-  /// We've just ran into a (non escaped) newline (either a `\n` or `\r\n`),
-  /// signalling the end of a line and the start of a new one.
-  ///
-  NewlineFound
-}
-
-/// This is used to keep track of whether a separator was observed at the head of the input.
-///
-type SepStatus {
-  /// An escaped field has ended followed by a field seperator
-  ///
-  QuotSep
-
-  /// A field separator was observed
-  ///
-  Sep
-
-  /// No field separator was observed
-  ///
-  NoSep
-}
-
-/// ## What does this scary looking function do?
-///
-/// At a high level, it goes over the csv `string` byte-by-byte and parses rows
-/// accumulating those into `rows` as it goes.
-///
-///
-/// ## Why does it have all these parameters? What does each one do?
-///
-/// In order to be extra efficient this function parses the csv file in a single
-/// pass and uses string slicing to avoid copying data.
-/// Each time we see a new field we keep track of the byte where it starts with
-/// `field_start` and then count the bytes (that's the `field_length` variable)
-/// until we fiend its end (either a newline, the end of the file, or a `,`).
-///
-/// After reaching the end of a field we extract it from the original string
-/// taking a slice that goes from `field_start` and has `field_length` bytes.
-/// This is where the magic happens: slicing a string this way is a constant
-/// time operation and doesn't copy the string so it's crazy fast!
-///
-/// `row` is an accumulator with all the fields of the current row as
-/// they are parsed. Once we run into a newline `current_row` is added to all
-/// the other `rows`.
-///
-/// We also keep track of _what_ we're parsing with the `status` to make
-/// sure that we're correctly dealing with escaped fields and double quotes.
-///
-fn do_parse(
-  string: String,
-  original: String,
-  field_start: Int,
-  field_length: Int,
-  row: List(String),
-  rows: List(List(String)),
-  status: ParseStatus,
-  field_separator: String,
-) -> Result(List(List(String)), ParseError) {
-  let sep_len = string.length(field_separator)
-  let #(remaining, skip, sep) = case
-    string.starts_with(string, field_separator)
-  {
-    True -> #(string.drop_start(string, sep_len), sep_len, Sep)
-    False ->
-      case string.starts_with(string, "\"" <> field_separator) {
-        True -> #(string.drop_start(string, sep_len + 1), sep_len + 1, QuotSep)
-        False -> #(string, 0, NoSep)
+fn lines_loop(
+  csv: String,
+  splitters: Splitters,
+  line_number: Int,
+  lines: List(List(String)),
+) -> Result(List(List(String)), Error) {
+  case csv {
+    "" -> Ok(list.reverse(lines))
+    _ ->
+      case line_loop(csv, splitters, line_number) {
+        Error(error) -> Error(error)
+        Ok(#(rest, line_number, line)) ->
+          lines_loop(rest, splitters, line_number, [line, ..lines])
       }
   }
-  case remaining, status, sep {
-    // If we find a separator we're done with the current field and can take a slice
-    // going from `field_start` with `field_length` bytes:
-    //
-    //     wibble<sep>wobble,...
-    //     ╰────╯ field_length = 6
-    //     ┬
-    //     ╰ field_start
-    //
-    // After taking the slice we move the slice start _after_ the field separator:
-    //
-    //     wibble<sep>wobble,...
-    //                ┬
-    //                ╰ field_start = field_start + field_length + skip (the length of the separator)
-    //
-    rest, SeparatorFound, Sep
-    | rest, NewlineFound, Sep
-    | rest, ParsingUnescapedField, Sep
-    | rest, ParsingEscapedField, QuotSep
-    -> {
-      let field = extract_field(original, field_start, field_length, status)
-      let row = [field, ..row]
-      let start = field_start + field_length + skip
-      do_parse(
-        rest,
-        original,
-        start,
-        0,
-        row,
-        rows,
-        SeparatorFound,
-        field_separator,
-      )
-    }
+}
 
-    // When the string is over we're done parsing.
-    // We take the final field we were in the middle of parsing and add it to
-    // the current row that is returned together with all the parsed rows.
-    //
-    "", ParsingUnescapedField, NoSep | "\"", ParsingEscapedField, NoSep -> {
-      let field = extract_field(original, field_start, field_length, status)
-      let row = list.reverse([field, ..row])
-      Ok(list.reverse([row, ..rows]))
-    }
+fn line_loop(
+  csv: String,
+  splitters: Splitters,
+  line_number: Int,
+) -> Result(#(String, Int, List(String)), Error) {
+  case splitter.split(splitters.newlines, csv) {
+    // We've reached the end of the csv, there's no line to parse.
+    #("", _, "") -> Ok(#("", line_number, []))
 
-    "", SeparatorFound, NoSep -> {
-      let row = list.reverse(["", ..row])
-      Ok(list.reverse([row, ..rows]))
-    }
+    // We ignore any empty line and just skip to the next.
+    #("", _, rest) -> line_loop(rest, splitters, line_number + 1)
 
-    "", NewlineFound, NoSep -> Ok(list.reverse(rows))
+    // Otherwise we get all the fields out of the current line.
+    #(line, newline, rest) ->
+      field_loop(line, newline, rest, splitters, line_number + 1, [])
+  }
+}
 
-    // If the string is over and we were parsing an escaped field, that's an
-    // error. We would expect to find a closing double quote before the end of
-    // the data.
-    //
-    "", ParsingEscapedField, NoSep -> Error(UnclosedEscapedField(field_start))
+/// This parses all the fields from the given line, returning them along with
+/// the reamining part of the csv that was not parsed.
+///
+/// > You might have noticed that this doesn't just takes the line to parse as
+/// > input, but it also needs the rest of the csv file. It might sound counter
+/// > intuitive, but its need is explained in more detail in the `escape_loop`
+/// > function.
+///
+fn field_loop(
+  line: String,
+  newline: String,
+  rest: String,
+  splitters: Splitters,
+  line_number: Int,
+  fields: List(String),
+) -> Result(#(String, Int, List(String)), Error) {
+  case splitter.split(splitters.separator_or_quote, line) {
+    // There's no commas (nor escapes) left in the string, so we know we've
+    // reached the last field in the line.
+    #(field, "", "") ->
+      Ok(#(rest, line_number, list.reverse([field, ..fields])))
 
-    // When we run into a new line (CRLF or just LF) we know we're done with the
-    // current field and take a slice of it, just like we did in the previous
-    // branch!
-    // The only difference is we also add the current `row` to all the other
-    // ones and start with a new one.
-    //
-    // > ⚠️ As for RFC 4180 lines should only be delimited by a CRLF.
-    // > Here we do something slightly different and also accept lines that are
-    // > delimited by just LF too.
-    //
-    // The next three branches are the same except for the new `field_start`
-    // that has to take into account the different lengths.
-    // I tried writing it as `"\n" as sep | "\r\n" as sep | ...` and then taking
-    // adding the lenght of that but it had a noticeable (albeit small) impact
-    // on performance.
-    //
-    "\n" <> rest, ParsingUnescapedField, NoSep -> {
-      let field = extract_field(original, field_start, field_length, status)
-      let row = list.reverse([field, ..row])
-      let rows = [row, ..rows]
-      let field_start = field_start + field_length + 1
-      do_parse(
-        rest,
-        original,
-        field_start,
-        0,
-        [],
-        rows,
-        NewlineFound,
-        field_separator,
-      )
-    }
-    "\r\n" <> rest, ParsingUnescapedField, NoSep
-    | "\"\n" <> rest, ParsingEscapedField, NoSep
-    -> {
-      let field = extract_field(original, field_start, field_length, status)
-      let row = list.reverse([field, ..row])
-      let rows = [row, ..rows]
-      let field_start = field_start + field_length + 2
-      do_parse(
-        rest,
-        original,
-        field_start,
-        0,
-        [],
-        rows,
-        NewlineFound,
-        field_separator,
-      )
-    }
-    "\"\r\n" <> rest, ParsingEscapedField, NoSep -> {
-      let field = extract_field(original, field_start, field_length, status)
-      let row = list.reverse([field, ..row])
-      let rows = [row, ..rows]
-      let field_start = field_start + field_length + 3
-      do_parse(
-        rest,
-        original,
-        field_start,
-        0,
-        [],
-        rows,
-        NewlineFound,
-        field_separator,
-      )
-    }
+    // A field starting with `"` is escaped and needs special handling.
+    #("", "\"", line) -> {
+      let start = line_number
+      let field =
+        escaped_loop(line, newline, rest, splitters, start, line_number, "")
 
-    // If the newlines is immediately after a field separator then the row ends with an
-    // empty field.
-    //
-    "\n" <> rest, SeparatorFound, NoSep -> {
-      let row = list.reverse(["", ..row])
-      let rows = [row, ..rows]
-      do_parse(
-        rest,
-        original,
-        field_start + 1,
-        0,
-        [],
-        rows,
-        NewlineFound,
-        field_separator,
-      )
-    }
-    "\r\n" <> rest, SeparatorFound, NoSep -> {
-      let row = list.reverse(["", ..row])
-      let rows = [row, ..rows]
-      do_parse(
-        rest,
-        original,
-        field_start + 2,
-        0,
-        [],
-        rows,
-        NewlineFound,
-        field_separator,
-      )
-    }
-
-    // If the newline immediately comes after a newline that means we've run
-    // into an empty line that we can just safely ignore.
-    //
-    "\n" <> rest, NewlineFound, NoSep ->
-      do_parse(
-        rest,
-        original,
-        field_start + 1,
-        0,
-        row,
-        rows,
-        status,
-        field_separator,
-      )
-    "\r\n" <> rest, NewlineFound, NoSep ->
-      do_parse(
-        rest,
-        original,
-        field_start + 2,
-        0,
-        row,
-        rows,
-        status,
-        field_separator,
-      )
-
-    // An escaped quote found while parsing an escaped field.
-    //
-    "\"\"" <> rest, ParsingEscapedField, NoSep ->
-      do_parse(
-        rest,
-        original,
-        field_start,
-        field_length + 2,
-        row,
-        rows,
-        status,
-        field_separator,
-      )
-
-    // An unescaped quote found while parsing a field.
-    //
-    "\"" <> _, ParsingUnescapedField, NoSep
-    | "\"" <> _, ParsingEscapedField, NoSep
-    -> Error(UnescapedQuote(position: field_start + field_length))
-
-    // If the quote is found immediately after a field separator or a newline that signals
-    // the start of a new escaped field to parse.
-    //
-    "\"" <> rest, SeparatorFound, NoSep | "\"" <> rest, NewlineFound, NoSep -> {
-      do_parse(
-        rest,
-        original,
-        field_start + 1,
-        0,
-        row,
-        rows,
-        ParsingEscapedField,
-        field_separator,
-      )
-    }
-
-    // In all other cases we're still parsing a field so we just drop a byte
-    // from the string we're iterating through, increase the size of the slice
-    // we need to take and keep going.
-    //
-    // > ⚠️ Notice how we're not trying to trim any whitespaces at the
-    // > beginning or end of a field: RFC 4810 states that "Spaces are
-    // > considered part of a field and should not be ignored."
-    //
-    _, SeparatorFound, _
-    | _, NewlineFound, _
-    | _, ParsingUnescapedField, _
-    | _, ParsingEscapedField, _
-    -> {
-      let status = case status {
-        ParsingEscapedField -> ParsingEscapedField
-        SeparatorFound | NewlineFound | ParsingUnescapedField ->
-          ParsingUnescapedField
+      case field {
+        Error(error) -> Error(error)
+        Ok(#("", _, rest, line_number, field)) ->
+          Ok(#(rest, line_number, list.reverse([field, ..fields])))
+        Ok(#(line, newline, rest, line_number, field)) -> {
+          let fields = [field, ..fields]
+          field_loop(line, newline, rest, splitters, line_number, fields)
+        }
       }
-      let rest = drop_bytes(string, 1)
-      do_parse(
-        rest,
-        original,
-        field_start,
-        field_length + 1,
-        row,
-        rows,
-        status,
-        field_separator,
-      )
+    }
+
+    // There's a stray escape in the middle of a field that is not escaped.
+    // This is an error!
+    #(_, "\"", _) -> Error(UnescapedQuote(line_number))
+
+    // We've found a field and the line is not over, so we just keep going,
+    // parsing fields from the rest of the line.
+    #(field, _, line) -> {
+      let fields = [field, ..fields]
+      field_loop(line, newline, rest, splitters, line_number, fields)
     }
   }
 }
 
-fn extract_field(
-  string: String,
-  from: Int,
-  length: Int,
-  status: ParseStatus,
-) -> String {
-  let field = slice_bytes(string, from, length)
-  case status {
-    SeparatorFound | ParsingUnescapedField | NewlineFound -> field
-    // If we were parsing an escaped field then escaped quotes must be replaced
-    // with a single one.
-    ParsingEscapedField -> string.replace(in: field, each: "\"\"", with: "\"")
+/// This parses an escaped field from the start of the line, once we've already
+/// found the opening `"`.
+///
+/// > You might have noticed this also needs the rest of the document and just
+/// > the current line is not enough. This is because an escaped field might
+/// > contain newlines, and so we could end up needing to get more lines from
+/// > the `rest` of the csv to properly parse the row.
+///
+fn escaped_loop(
+  line: String,
+  newline: String,
+  rest: String,
+  splitters: Splitters,
+  // This is the line where the current row has started, and it is used to build
+  // a nice error if the escaped field is missing a close quote.
+  start: Int,
+  line_number: Int,
+  // The field is being built piece by piece as we also need to be unescaping
+  // escaped quotes and can't just take the content between quotes verbatim.
+  // This is the accumulator holding the field as it is being built.
+  field: String,
+) -> Result(#(String, String, String, Int, String), Error) {
+  case splitter.split(splitters.quotes, line) {
+    // We've reached the end of the line without finding any closing quote.
+    // This could mean two things:
+    #(line_piece, "", "") ->
+      case splitter.split(splitters.newlines, rest) {
+        // 1. we have reached the end of the entire csv file and there's no
+        //    closed quote, that is an error.
+        #("", "", "") -> Error(MissingClosingQuote(start))
+
+        // 2. we have an escaped field that is spanning multiple lines and we
+        //    need to get a new line from the rest of the csv to properly parse
+        //    it.
+        #(line, rest_newline, rest) -> {
+          let line = line_piece <> newline <> line
+          let line_number = line_number + 1
+          escaped_loop(
+            line,
+            rest_newline,
+            rest,
+            splitters,
+            start,
+            line_number,
+            field,
+          )
+        }
+      }
+
+    // If we find a double quote, we need to unescape it: that is we replace it
+    // with a single quote in the final field.
+    #(field_piece, "\"\"", line) -> {
+      let field = field <> field_piece <> "\""
+      escaped_loop(line, newline, rest, splitters, start, line_number, field)
+    }
+
+    // The field is properly closed and there's nothing more to the line.
+    #(field_piece, _, "") -> {
+      let field = case field {
+        "" -> field_piece
+        _ -> field <> field_piece
+      }
+      Ok(#("", newline, rest, line_number, field))
+    }
+
+    // The field is properly closed, but the line is not over! So we need to
+    // keep going.
+    #(field_piece, _, line) -> {
+      // We remove the leading separator from the rest of the line.
+      case string.starts_with(line, splitters.separator) {
+        False -> Error(UnescapedQuote(line_number))
+        True -> {
+          let line = splitter.split(splitters.separator_or_quote, line).2
+          let field = case field {
+            "" -> field_piece
+            _ -> field <> field_piece
+          }
+          Ok(#(line, newline, rest, line_number, field))
+        }
+      }
+    }
   }
 }
 
@@ -499,7 +318,7 @@ fn extract_field(
 pub fn to_dicts(
   input: String,
   separator field_separator: String,
-) -> Result(List(Dict(String, String)), ParseError) {
+) -> Result(List(Dict(String, String)), Error) {
   use rows <- result.map(to_lists(input, field_separator))
   case rows {
     [] -> []
@@ -602,19 +421,3 @@ fn row_dict_to_list(
     Error(Nil) -> ""
   }
 }
-
-// --- FFI HELPERS -------------------------------------------------------------
-
-/// In general this wouldn't be safe, by just slicing random bytes in the middle
-/// of a utf8 string we might end up with something that is not a valid utf8
-/// string.
-/// However, the parser only slices fields in between separators so it should always
-/// yield valid utf8 slices.
-///
-@external(erlang, "gsv_ffi", "slice")
-@external(javascript, "./gsv_ffi.mjs", "slice")
-fn slice_bytes(string: String, from: Int, length: Int) -> String
-
-@external(erlang, "gsv_ffi", "drop_bytes")
-@external(javascript, "./gsv_ffi.mjs", "drop_bytes")
-fn drop_bytes(string: String, bytes: Int) -> String
