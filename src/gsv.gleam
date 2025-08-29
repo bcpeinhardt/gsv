@@ -104,6 +104,9 @@ pub fn to_lists(
   csv: String,
   separator separator: String,
 ) -> Result(List(List(String)), Error) {
+  // Before we start parsing, we want to remove the UTF8 BOM if there is one
+  let csv = strip_bom_from_utf8(csv)
+
   let splitters =
     Splitters(
       separator:,
