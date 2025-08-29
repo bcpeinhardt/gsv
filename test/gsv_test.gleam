@@ -169,6 +169,15 @@ only,two",
   assert value == [["three", "fields", "woo"], ["only", "two"]]
 }
 
+// Many programs will add a BOM (Byte Order Marker) to the front of utf8 files.
+// The spec discourages doing this, but it also discourages removing it (which is why simplifile doesn't remove it).
+// This can cause problems for parsers not expecting it though. GSV needs to handle utf8 strings that start with a BOM.
+pub fn strip_initial_bom_test() {
+  let csv_content = "\u{feff}foo,bar"
+  let assert Ok(value) = gsv.to_lists(csv_content, separator: ",")
+  assert value == [["foo", "bar"]]
+}
+
 // --- DICT PARSING ------------------------------------------------------------
 
 pub fn headers_test() {

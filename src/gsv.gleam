@@ -421,3 +421,10 @@ fn row_dict_to_list(
     Error(Nil) -> ""
   }
 }
+
+fn strip_bom_from_utf8(original: String) -> String {
+  case original {
+    "\u{feff}" <> rest -> rest
+    _ -> original
+  }
+}
