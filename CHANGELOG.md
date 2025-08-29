@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Before parsing, strip the UTF8 byte order marker so the parser doesn't treat it as a character
+  in the first record.
 
 ## v5.0.0 - 13 August 2025
 - The performance of `to_lists` and `to_dicts` has been improved.
